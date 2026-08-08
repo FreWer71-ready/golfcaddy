@@ -1,4 +1,8 @@
 const P={hcp:33.3,rounds:37,torshallaRounds:30,avgPoints:35.1,torshallaAvg:35.2,bestPoints:45,fairway:46,gir:5,putts:40.3,missRight:28,missShort:32,hcpImprovement:10.7};
+// use APP_VERSION injected into window by index.html; fall back to 1.2.8
+const APP_VERSION = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1.2.8';
+const TAG = APP_VERSION ? `?v=${APP_VERSION}` : '';
+
 const H=[[4,10,347],[4,6,356],[4,2,378],[3,18,113],[5,4,491],[5,12,480],[4,8,331],[3,16,140],[4,14,304],[4,9,335],[5,13,497],[3,11,166],[4,5,326],[4,3,347],[3,17,114],[4,1,379],[4,7,363],[5,15,435]].map((x,i)=>({hole:i+1,par:x[0],index:x[1],distance:x[2]}));
 const HS={birdie:1,par:14,bogey:68,double:76,worse:93,putt3:2.0,putt45:2.25};
 const C=[['Driver 909 D-Comp',145,181],['Järn 5 King F9',115,144],['Järn 8 King F9',113,124],['Järn 7 King F9',109,126],['Järn 9 King F9',101,108],['Pitching Wedge',90,93],['Wedge 60°',72,84]];
@@ -43,7 +47,11 @@ function aiAdvice(h){
   const ans = `REKOMMENDATION\n${rec}\n\nSPELA SLAGET\n${play}\n\nVARFÖR\n${why}\n\nMÅLSCORE\n${goal}\n\nSÄKERHET\n${safety}`;
   return ans;
 }
-function sketch(h){const tag='?v=1.2.6';const src = `assets/holes/hole${h.hole}.jpg${tag}`;return `<div class="card sketch"><b>Hålskiss · hål ${h.hole}</b><img src="${src}" alt="Hål ${h.hole}" style="width:100%;height:auto;border-radius:12px" onerror="this.src='assets/banguide.jpg?v=1.2.6'"/><div class="legend">Officiell hålskiss från Torshälla GK. Klicka nedan för detaljerad banguide.</div><a class="official" href="https://torshallagk.se/spela/banan/" target="_blank" rel="noopener noreferrer">Öppna Torshälla GK:s officiella banguide</a></div>`}
+<<<<<<< HEAD
+function sketch(h){const tag = TAG; const src = `assets/holes/hole${h.hole}.jpg${tag}`;return `<div class="card sketch"><b>Hålskiss · hål ${h.hole}</b><img src="${src}" alt="Hål ${h.hole}" style="width:100%;height:auto;border-radius:12px" onerror="this.src='assets/banguide.jpg'+TAG"/><div class="legend">Officiell hålskiss från Torshälla GK. Klicka nedan för detaljerad banguide.</div><a class="official" href="https://torshallagk.se/spela/banan/" target="_blank" rel="noopener noreferrer">Öppna Torshälla GK:s officiella banguide</a></div>`}
+=======
+function sketch(h){const tag = TAG; const src = `assets/holes/hole${h.hole}.jpg${tag}`;return `<div class="card sketch"><b>Hålskiss · hål ${h.hole}</b><img src="${src}" alt="Hål ${h.hole}" style="width:100%;height:auto;border-radius:12px" onerror="this.src='assets/banguide.jpg'+TAG"/><div class="legend">Officiell hålskiss från Torshälla GK. Klicka nedan för detaljerad banguide.</div><a class="official" href="https://torshallagk.se/spela/banan/" target="_blank" rel="noopener noreferrer">Öppna Torshälla GK:s officiella banguide</a></div>`}
+>>>>>>> origin/main
 function render(){
   let h=H[i],eff=Math.max(1,h.distance+wind*2),s=scores[h.hole]??h.par;
   // Advice moved above sketch
@@ -63,7 +71,11 @@ function renderHoleScores(){
   const list = Object.keys(data).sort((a,b)=>a-b).map(h=>`<div class="metric">Hål ${h}<b>${data[h].join(', ')}</b></div>`).join('');
   document.getElementById('hole-scores-list').innerHTML = list?`<div class="grid">${list}</div>`:'<div>Ingen data för valt filter</div>';
 }
-fetch('assets/data/hole_scores_by_club.json?v=1.2.6').then(r=>r.json()).then(data=>{
+<<<<<<< HEAD
+fetch('assets/data/hole_scores_by_club.json'+TAG).then(r=>r.json()).then(data=>{
+=======
+fetch('assets/data/hole_scores_by_club.json'+TAG).then(r=>r.json()).then(data=>{
+>>>>>>> origin/main
   clubData = data || {};
   // populate select
   const sel = document.getElementById('club-filter');
