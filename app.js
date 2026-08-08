@@ -17,35 +17,61 @@ function club(d){if(d>168)return C[0];return C.reduce((a,b)=>Math.abs(b[1]-d)<Ma
 
 // AI-like heuristic advice generator following provided rules (deterministic, client-side)
 function aiAdvice(h){
-  const eff = Math.max(1, h.distance + wind*2);
-  // pick nearest club by carry
-  const pick = club(eff);
-  const carry = pick[1];
-  const clubName = pick[0];
-  // history from clubDataGlobal (prefer Torshälla if available)
-  const clubKey = clubDataGlobal['torshallagolfklubb'] ? 'torshallagolfklubb' : (Object.keys(clubDataGlobal).find(k=>k!=='all')||'all');
-  const history = (clubDataGlobal[clubKey] && clubDataGlobal[clubKey][String(h.hole)]) || [];
-  const histCount = history.length;
-  const histAvg = histCount? Math.round(history.reduce((a,b)=>a+b,0)/histCount):null;
+  // Required effective distance uses carry-first and accounts for wind as priority
+  const req = Math.max(1, Math.round(h.distance + wind*2));
+  // find clubs that can reach by carry
+  const reachable = C.map((c,idx)=>({idx, name:c[0], carry:c[1]})).filter(c=>c.carry>=req);
+  let choice;
+  if(reachable.length===0){
+    // no club reaches: suggest safe transport with longest available carry
+    choice = {name: C[0][0], carry: C[0][1], toGreen:false};
+  } else {
+    // choose the smallest carry that still reaches (but prefer longer when between two)
+    reachable.sort((a,b)=>a.carry-b.carry);
+    let pick = reachable[0];
+    // if there is a previous shorter club, and we're between two, prefer the longer club
+    const prevIdx = C.findIndex(x=>x[1]===pick.carry)+1; // index of pick in C (approx)
+    // simpler: if second candidate exists, pick the longer candidate when ambiguous
+    if(reachable.length>1){
+      // pick the first (shortest reaching) but prefer the second (longer) in most cases per rules
+      pick = reachable[ Math.min(1, reachable.length-1) ];
+    }
+    choice = {name: pick.name, carry: pick.carry, toGreen:true};
+  }
 
-  // Safety & strategy
+  // History for hole
+  const clubKey = clubDataGlobal['torshallagolfklubb'] ? 'torshallagolfklubb' : (Object.keys(clubDataGlobal).find(k=>k!=='all')||'all');
+  const hist = (clubDataGlobal[selectedClub] && clubDataGlobal[selectedClub][String(h.hole)]) || (clubDataGlobal[clubKey] && clubDataGlobal[clubKey][String(h.hole)]) || [];
+  const histCount = hist.length;
+  const histAvg = histCount? Math.round((hist.reduce((a,b)=>a+b,0)/histCount)*10)/10 : null;
+
+  // Decision modifiers
+  let playStyle = 'normal';
+  if(histCount>=3){
+    if(histAvg>h.par) playStyle = 'safe';
+    else if(histAvg<=h.par) playStyle = 'offensive';
+  }
+
+  // Wind effect text
+  const windDesc = Math.abs(wind)<=3? 'svag' : (Math.abs(wind)<=6? 'måttlig' : 'kraftig');
+  const windSense = wind>0? 'motvind' : (wind<0? 'medvind' : 'ingen vind');
+
+  // Compose short structured answer (matching previous UI sections)
   let rec, play, why, goal, safety;
-  if(carry < eff){
-    rec = `${clubName} mot landning`;
-    play = `Spela transportslag, sikta vänster om centrum.`;
-    why = `För liten carry (${carry}m) vs ${eff}m; missar ofta kort/höger.`;
+  if(!choice.toGreen){
+    rec = `${choice.name} mot landning`;
+    play = `Säkert transportslag, sikta vänster; justera för ${windDesc} ${windSense}.`;
+    why = `Ingen klubb når green med normal carry. Välj landning.`;
     safety = 'Hög';
     goal = h.par;
   } else {
-    rec = `${clubName} mot green`;
-    const windDesc = Math.abs(wind)<=3?'svag':(Math.abs(wind)<=6?'måttlig':'tydlig');
-    const windDir = wind>0? 'motvind':'medvind';
-    play = `Lugn tempo, sikta vänster om centrum, justera för ${windDesc} ${windDir}.`;
-    why = histCount>=3? `Hist.avg ${histAvg} över ${histCount} ronder.` : (histCount>0? 'Begränsat historiskt underlag.' : 'Ingen historik; basera på carry och vind.');
-    safety = histAvg && histAvg>h.par? 'Hög' : 'Medel';
-    goal = histAvg? Math.max(h.par, Math.round((histAvg+h.par)/2)) : h.par;
+    rec = `${choice.name} mot green`;
+    play = `${playStyle==='safe' ? 'Spela säkert, sikta vänster.' : 'Spela mer offensivt, sikta vänster.'} Justera för ${windDesc} ${windSense}.`;
+    why = `Carry ${choice.carry}m ≥ behov ${req}m; missar ofta kort/höger.` + (histCount? ` Hist.snitt ${histAvg} över ${histCount}.` : ' Ingen historik.');
+    safety = playStyle==='safe' ? 'Hög' : (playStyle==='offensive'? 'Låg' : 'Medel');
+    goal = playStyle==='safe' ? Math.max(h.par, Math.round((histAvg||h.par))) : Math.max(h.par-1, Math.round((histAvg||h.par)));
   }
-  // Compose compact answer under 45 words in required format
+
   const ans = `REKOMMENDATION\n${rec}\n\nSPELA SLAGET\n${play}\n\nVARFÖR\n${why}\n\nMÅLSCORE\n${goal}\n\nSÄKERHET\n${safety}`;
   return ans;
 }
