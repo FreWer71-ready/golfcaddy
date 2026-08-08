@@ -120,3 +120,4 @@ with open('assets/data/hole_scores_by_club.json','w',encoding='utf-8') as f:
     json.dump(output,f,ensure_ascii=False,indent=2)
 print('WROTE assets/data/hole_scores.json total_rows', sum(len(v) for v in combined.values()))
 print('WROTE assets/data/hole_scores_by_club.json clubs', len(list(output.keys())))
+
