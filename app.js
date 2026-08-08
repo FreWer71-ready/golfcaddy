@@ -62,8 +62,6 @@ function render(){
 // profile + data fetch
 document.querySelector('#profile').innerHTML=`<div class="card advice"><small>PERSONLIG NULÄGESBILD</small><h3>Fredrik, HCP ${P.hcp}</h3><div class="score" style="color:#bef264">−${P.hcpImprovement}</div><div>HCP sedan första registrerade rond</div></div><div class="grid">${[['Snittpoäng',P.avgPoints],['Torshälla',P.torshallaAvg],['Fairway',P.fairway+' %'],['Greenträff',P.gir+' %'],['Puttar/rond',P.putts],['Ronder',P.rounds]].map(x=>`<div class="metric">${x[0]}<b>${x[1]}</b></div>`).join('')}</div><div class="card" id="hole-stats"><small>Hålscorer</small><div style="margin-top:8px"><label for="club-filter">Filtrera på bana:</label> <select id="club-filter"><option value="all">Alla klubbar</option></select></div><div id="hole-scores-list">Laddar…</div></div><div class="card"><b>Caddyns fokus</b><p>• Välj mer klubba. 32 % av greenmissarna är korta.</p><p>• Sikta vänster om centrum. 28 % av greenmissarna är höger.</p><p>• Prioritera fairway och träna lagputtning.</p></div>`;
 let clubData = {};
-let clubDisplayNames = {};
-let selectedClub = 'all';
 function renderHoleScores(){
   const data = clubData[selectedClub]||{};
   const list = Object.keys(data).sort((a,b)=>a-b).map(h=>`<div class="metric">Hål ${h}<b>${data[h].join(', ')}</b></div>`).join('');
