@@ -2,12 +2,53 @@ const P={hcp:33.3,rounds:37,torshallaRounds:30,avgPoints:35.1,torshallaAvg:35.2,
 const H=[[4,10,347],[4,6,356],[4,2,378],[3,18,113],[5,4,491],[5,12,480],[4,8,331],[3,16,140],[4,14,304],[4,9,335],[5,13,497],[3,11,166],[4,5,326],[4,3,347],[3,17,114],[4,1,379],[4,7,363],[5,15,435]].map((x,i)=>({hole:i+1,par:x[0],index:x[1],distance:x[2]}));
 const HS={birdie:1,par:14,bogey:68,double:76,worse:93,putt3:2.0,putt45:2.25};
 const C=[['Driver 909 D-Comp',145,181],['Järn 5 King F9',115,144],['Järn 8 King F9',113,124],['Järn 7 King F9',109,126],['Järn 9 King F9',101,108],['Pitching Wedge',90,93],['Wedge 60°',72,84]];
-let i=+(localStorage.gcHole||0), wind=0; let scores = {};
+let i=+(localStorage.gcHole||0), wind=0; let scores = {}; // global club data for AI advice
+let clubDataGlobal = {}; let clubDisplayNames = {}; let selectedClub = 'all';
+// fetch club-indexed data early so Caddy advice can use history
+fetch('assets/data/hole_scores_by_club.json?v=1.2.6').then(r=>r.json()).then(d=>{ clubDataGlobal = d || {}; }).catch(()=>{ clubDataGlobal = {}; });
 try { scores = JSON.parse(localStorage.gcScores || '{}'); } catch(e) { console.warn('Failed to parse gcScores, removing invalid value:', e); localStorage.removeItem('gcScores'); scores = {}; }
 function club(d){if(d>168)return C[0];return C.reduce((a,b)=>Math.abs(b[1]-d)<Math.abs(a[1]-d)?b:a)}
-function advice(h){if(h.par===3)return `Din vanligaste greenmiss är kort (${P.missShort} %) och höger (${P.missRight} %). Sikta vänster om centrum och välj klubba efter carry. ${club(h.distance)[0]} ligger närmast i din uppmätta bag.`;if(h.par===5)return 'Spela hålet som tre kontrollerade transportslag. Din driver har 145 m carry och 181 m total i rangesnitt. Lämna ett tredje slag kring 90–110 m.';if(h.index<=6)return 'Ett av banans svårare hål. Spela för en säker väg fram, sikta vänster om mållinjen och prioritera ett bekvämt närspel.';return 'Fairwayträff ger klart bättre resultat i ditt underlag. Välj en konservativ startlinje, acceptera ett extra slag fram och undvik flaggjakt.'}
+
+// AI-like heuristic advice generator following provided rules (deterministic, client-side)
+function aiAdvice(h){
+  const eff = Math.max(1, h.distance + wind*2);
+  // pick nearest club by carry
+  const pick = club(eff);
+  const carry = pick[1];
+  const clubName = pick[0];
+  // history from clubDataGlobal (prefer Torshälla if available)
+  const clubKey = clubDataGlobal['torshallagolfklubb'] ? 'torshallagolfklubb' : (Object.keys(clubDataGlobal).find(k=>k!=='all')||'all');
+  const history = (clubDataGlobal[clubKey] && clubDataGlobal[clubKey][String(h.hole)]) || [];
+  const histCount = history.length;
+  const histAvg = histCount? Math.round(history.reduce((a,b)=>a+b,0)/histCount):null;
+
+  // Safety & strategy
+  let rec, play, why, goal, safety;
+  if(carry < eff){
+    rec = `${clubName} mot landning`;
+    play = `Spela transportslag, sikta vänster om centrum.`;
+    why = `För liten carry (${carry}m) vs ${eff}m; missar ofta kort/höger.`;
+    safety = 'Hög';
+    goal = h.par;
+  } else {
+    rec = `${clubName} mot green`;
+    const windDesc = Math.abs(wind)<=3?'svag':(Math.abs(wind)<=6?'måttlig':'tydlig');
+    const windDir = wind>0? 'motvind':'medvind';
+    play = `Lugn tempo, sikta vänster om centrum, justera för ${windDesc} ${windDir}.`;
+    why = histCount>=3? `Hist.avg ${histAvg} över ${histCount} ronder.` : (histCount>0? 'Begränsat historiskt underlag.' : 'Ingen historik; basera på carry och vind.');
+    safety = histAvg && histAvg>h.par? 'Hög' : 'Medel';
+    goal = histAvg? Math.max(h.par, Math.round((histAvg+h.par)/2)) : h.par;
+  }
+  // Compose compact answer under 45 words in required format
+  const ans = `REKOMMENDATION\n${rec}\n\nSPELA SLAGET\n${play}\n\nVARFÖR\n${why}\n\nMÅLSCORE\n${goal}\n\nSÄKERHET\n${safety}`;
+  return ans;
+}
 function sketch(h){const tag='?v=1.2.6';const src = `assets/holes/hole${h.hole}.jpg${tag}`;return `<div class="card sketch"><b>Hålskiss · hål ${h.hole}</b><img src="${src}" alt="Hål ${h.hole}" style="width:100%;height:auto;border-radius:12px" onerror="this.src='assets/banguide.jpg?v=1.2.6'"/><div class="legend">Officiell hålskiss från Torshälla GK. Klicka nedan för detaljerad banguide.</div><a class="official" href="https://torshallagk.se/spela/banan/" target="_blank" rel="noopener noreferrer">Öppna Torshälla GK:s officiella banguide</a></div>`}
-function render(){let h=H[i],eff=Math.max(1,h.distance+wind*2),s=scores[h.hole]??h.par;document.querySelector('#caddy').innerHTML=`<div class="card hero"><div class="badges"><span class="badge">Par ${h.par}</span><span class="badge">Index ${h.index}</span></div><small>HÅL</small><h2>${h.hole}</h2><div>Tee 2</div><div class="distance">${h.distance} m</div></div>${sketch(h)}<div class="card"><small style="color:#047857;font-weight:800">PERSONLIG HÅLSTATISTIK</small><h3 style="margin:5px 0">Underlag för hål ${h.hole}</h3><div class="legend">Resultatsammanfattningen omfattar 19 ronder och redovisar samlade hålutfall, inte specifika hålnummer.</div><div class="grid" style="margin-top:10px"><div class="metric">Puttar/hål<b>${h.par===3?HS.putt3:HS.putt45}</b></div><div class="metric">Fairway<b>${h.par===3?'Ej tillämpligt':'46 %'}</b></div><div class="metric">GIR<b>5 %</b></div></div><div class="historygrid"><div>Birdie<b>${HS.birdie}</b></div><div>Par<b>${HS.par}</b></div><div>Bogey<b>${HS.bogey}</b></div><div>Dubbel<b>${HS.double}</b></div><div>Sämre<b>${HS.worse}</b></div></div></div><div class="card row"><b>Vindjustering</b><div class="stepper"><button onclick="wind--;render()">−</button> <b>${wind>0?'+':''}${wind} m/s</b> <button onclick="wind++;render()">+</button></div></div><div class="card advice"><small>PERSONLIGT RÅD</small><h3>${h.par===3?club(eff)[0]:'Spela för position'}</h3><div>${advice(h)}</div><p class="note">Klubbdistanserna är rangevärden från matta och rangebollar.</p></div><div class="nav"><button class="button" onclick="move(-1)" ${i===0?'disabled':''}>‹ Föregående</button><button class="button primary" onclick="move(1)" ${i===17?'disabled':''}>Nästa ›</button></div>`;
+function render(){
+  let h=H[i],eff=Math.max(1,h.distance+wind*2),s=scores[h.hole]??h.par;
+  // Advice moved above sketch
+  const adviceCard = `<div class="card advice"><small>PERSONLIGT RÅD</small><h3>${h.par===3?club(eff)[0]:'Spela för position'}</h3><div style="white-space:pre-wrap">${aiAdvice(h)}</div><p class="note">Klubbdistanserna är rangevärden från matta och rangebollar.</p></div>`;
+  document.querySelector('#caddy').innerHTML=`<div class="card hero"><div class="badges"><span class="badge">Par ${h.par}</span><span class="badge">Index ${h.index}</span></div><small>HÅL</small><h2>${h.hole}</h2><div>Tee 2</div><div class="distance">${h.distance} m</div></div>${adviceCard}${sketch(h)}<div class="card"><small style="color:#047857;font-weight:800">PERSONLIG HÅLSTATISTIK</small><h3 style="margin:5px 0">Underlag för hål ${h.hole}</h3><div class="legend">Resultatsammanfattningen omfattar 19 ronder och redovisar samlade hålutfall, inte specifika hålnummer.</div><div class="grid" style="margin-top:10px"><div class="metric">Puttar/hål<b>${h.par===3?HS.putt3:HS.putt45}</b></div><div class="metric">Fairway<b>${h.par===3?'Ej tillämpligt':'46 %'}</b></div><div class="metric">GIR<b>5 %</b></div></div><div class="historygrid"><div>Birdie<b>${HS.birdie}</b></div><div>Par<b>${HS.par}</b></div><div>Bogey<b>${HS.bogey}</b></div><div>Dubbel<b>${HS.double}</b></div><div>Sämre<b>${HS.worse}</b></div></div></div><div class="card row"><b>Vindjustering</b><div class="stepper"><button onclick="wind--;render()">−</button> <b>${wind>0?'+':''}${wind} m/s</b> <button onclick="wind++;render()">+</button></div></div><div class="nav"><button class="button" onclick="move(-1)" ${i===0?'disabled':''}>‹ Föregående</button><button class="button primary" onclick="move(1)" ${i===17?'disabled':''}>Nästa ›</button></div>`;
 }
 
 /* Score tab removed */
