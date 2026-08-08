@@ -5,7 +5,7 @@ const H=[[4,10,347],[4,6,356],[4,2,378],[3,18,113],[5,4,491],[5,12,480],[4,8,331
 const HS={birdie:1,par:14,bogey:68,double:76,worse:93,putt3:2.0,putt45:2.25};
 const C=[['Driver 909 D-Comp',145,181],['Järn 5 King F9',115,144],['Järn 8 King F9',113,124],['Järn 7 King F9',109,126],['Järn 9 King F9',101,108],['Pitching Wedge',90,93],['Wedge 60°',72,84]];
 let i=+(localStorage.gcHole||0), wind=0; let scores = {};
-try { scores = JSON.parse(localStorage.gcScores || '{}'); } catch(e) { console.warn('Failed to parse gcScores, resetting:', e); scores = {}; }
+try { scores = JSON.parse(localStorage.gcScores || '{}'); } catch(e) { console.warn('Failed to parse gcScores, removing invalid value:', e); localStorage.removeItem('gcScores'); scores = {}; }
 function club(d){if(d>168)return C[0];return C.reduce((a,b)=>Math.abs(b[1]-d)<Math.abs(a[1]-d)?b:a)}
 function advice(h){if(h.par===3)return `Din vanligaste greenmiss är kort (${P.missShort} %) och höger (${P.missRight} %). Sikta vänster om centrum och välj klubba efter carry. ${club(h.distance)[0]} ligger närmast i din uppmätta bag.`;if(h.par===5)return 'Spela hålet som tre kontrollerade transportslag. Din driver har 145 m carry och 181 m total i rangesnitt. Lämna ett tredje slag kring 90–110 m.';if(h.index<=6)return 'Ett av banans svårare hål. Spela för en säker väg fram, sikta vänster om mållinjen och prioritera ett bekvämt närspel.';return 'Fairwayträff ger klart bättre resultat i ditt underlag. Välj en konservativ startlinje, acceptera ett extra slag fram och undvik flaggjakt.'}
 function sketch(h){const tag='?v=1.2.5';const src = `assets/holes/hole${h.hole}.jpg${tag}`;return `<div class="card sketch"><b>Hålskiss · hål ${h.hole}</b><img src="${src}" alt="Hål ${h.hole}" style="width:100%;height:auto;border-radius:12px" onerror="this.src='assets/banguide.jpg?v=1.2.5'"/><div class="legend">Officiell hålskiss från Torshälla GK. Klicka nedan för detaljerad banguide.</div><a class="official" href="https://torshallagk.se/spela/banan/" target="_blank" rel="noopener noreferrer">Öppna Torshälla GK:s officiella banguide</a></div>`}
@@ -21,5 +21,5 @@ window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();def
 window.addEventListener('appinstalled',()=>{statusBox.style.display='block';statusBox.textContent='Golfcaddy är installerad.';});
 window.addEventListener('offline',()=>{statusBox.style.display='block';statusBox.textContent='Offline-läge: appen använder sparat innehåll.';});
 window.addEventListener('online',()=>{if(!deferredPrompt)statusBox.style.display='none';});
-if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js'));}
+if('serviceWorker' in navigator){window.addEventListener('load',()=>{fetch('./sw.js',{method:'HEAD'}).then(r=>{if(r.ok){navigator.serviceWorker.register('./sw.js').catch(e=>console.warn('ServiceWorker register failed',e));}else{console.info('No service worker script found (status',r.status,')');}}).catch(()=>{console.info('No service worker script available (fetch failed)')});});}
 </script></body></html>
