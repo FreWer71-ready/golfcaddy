@@ -3,6 +3,12 @@
 Fredriks Golfcaddy — enkel offline‑vänlig SPA för Torshälla GK.
 
 ## Releases & preview
+
+[![Release v1.2.6](https://img.shields.io/github/v/release/FreWer71-ready/golfcaddy?include_prereleases=false)](https://github.com/FreWer71-ready/golfcaddy/releases/tag/v1.2.6)
+
+- v1.2.6 — 2026-08-08: Fix service worker registration, move inline JS to app.js, clear corrupted localStorage.gcScores, add cache-bust querystrings for assets, and preview sw.js fix.
+- Preview site: https://frewer71-ready.github.io/golfcaddy-preview/ (use hard refresh / incognito to bypass caches)
+
 - v1.2.6 — 2026-08-08: Fix service worker registration, move inline JS to app.js, clear corrupted localStorage.gcScores, add cache-bust querystrings for assets, and preview sw.js fix.
 - Preview site: https://frewer71-ready.github.io/golfcaddy-preview/ (use hard refresh / incognito to bypass caches)
 
