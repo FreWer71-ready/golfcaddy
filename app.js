@@ -13,8 +13,29 @@ function render(){let h=H[i],eff=Math.max(1,h.distance+wind*2),s=scores[h.hole]?
 /* Score tab removed */
 
 // profile + data fetch
-document.querySelector('#profile').innerHTML=`<div class="card advice"><small>PERSONLIG NULÄGESBILD</small><h3>Fredrik, HCP ${P.hcp}</h3><div class="score" style="color:#bef264">−${P.hcpImprovement}</div><div>HCP sedan första registrerade rond</div></div><div class="grid">${[['Snittpoäng',P.avgPoints],['Torshälla',P.torshallaAvg],['Fairway',P.fairway+' %'],['Greenträff',P.gir+' %'],['Puttar/rond',P.putts],['Ronder',P.rounds]].map(x=>`<div class="metric">${x[0]}<b>${x[1]}</b></div>`).join('')}</div><div class="card" id="hole-stats"><small>Hålscorer</small><div id="hole-scores-list">Laddar…</div></div><div class="card"><b>Caddyns fokus</b><p>• Välj mer klubba. 32 % av greenmissarna är korta.</p><p>• Sikta vänster om centrum. 28 % av greenmissarna är höger.</p><p>• Prioritera fairway och träna lagputtning.</p></div>`;
-fetch('assets/data/hole_scores.json?v=1.2.6').then(r=>r.json()).then(data=>{let list=Object.keys(data).sort((a,b)=>a-b).map(h=>`<div class="metric">Hål ${h}<b>${data[h].join(', ')}</b></div>`).join('');document.getElementById('hole-scores-list').innerHTML=`<div class="grid">${list}</div>`}).catch(e=>{document.getElementById('hole-scores-list').textContent='Ingen data'});
+document.querySelector('#profile').innerHTML=`<div class="card advice"><small>PERSONLIG NULÄGESBILD</small><h3>Fredrik, HCP ${P.hcp}</h3><div class="score" style="color:#bef264">−${P.hcpImprovement}</div><div>HCP sedan första registrerade rond</div></div><div class="grid">${[['Snittpoäng',P.avgPoints],['Torshälla',P.torshallaAvg],['Fairway',P.fairway+' %'],['Greenträff',P.gir+' %'],['Puttar/rond',P.putts],['Ronder',P.rounds]].map(x=>`<div class="metric">${x[0]}<b>${x[1]}</b></div>`).join('')}</div><div class="card" id="hole-stats"><small>Hålscorer</small><div style="margin-top:8px"><label for="club-filter">Filtrera på bana:</label> <select id="club-filter"><option value="all">Alla klubbar</option></select></div><div id="hole-scores-list">Laddar…</div></div><div class="card"><b>Caddyns fokus</b><p>• Välj mer klubba. 32 % av greenmissarna är korta.</p><p>• Sikta vänster om centrum. 28 % av greenmissarna är höger.</p><p>• Prioritera fairway och träna lagputtning.</p></div>`;
+let clubData = {};
+let clubDisplayNames = {};
+let selectedClub = 'all';
+function renderHoleScores(){
+  const data = clubData[selectedClub]||{};
+  const list = Object.keys(data).sort((a,b)=>a-b).map(h=>`<div class="metric">Hål ${h}<b>${data[h].join(', ')}</b></div>`).join('');
+  document.getElementById('hole-scores-list').innerHTML = list?`<div class="grid">${list}</div>`:'<div>Ingen data för valt filter</div>';
+}
+fetch('assets/data/hole_scores_by_club.json?v=1.2.6').then(r=>r.json()).then(data=>{
+  clubData = data || {};
+  // populate select
+  const sel = document.getElementById('club-filter');
+  // keep 'all' option
+  Object.keys(clubData).filter(k=>k!=='all').sort().forEach(k=>{
+    const opt = document.createElement('option'); opt.value=k; opt.textContent = k.replace(/golfklubb|golfklubb/g,'').replace(/_/g,' ');
+    sel.appendChild(opt);
+  });
+  sel.onchange = e=>{ selectedClub = e.target.value; renderHoleScores(); };
+  // default to Torshälla if present
+  if(clubData['torshallagolfklubb']){ selectedClub='torshallagolfklubb'; sel.value=selectedClub }
+  renderHoleScores();
+}).catch(e=>{document.getElementById('hole-scores-list').textContent='Ingen data'});
 
 function move(d){i=Math.max(0,Math.min(17,i+d));localStorage.gcHole=i;render()}function go(n){i=n;localStorage.gcHole=i;render()}function setScore(n){scores[H[i].hole]=Math.max(1,n);localStorage.gcScores=JSON.stringify(scores);render()}
 

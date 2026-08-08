@@ -62,9 +62,9 @@ if club_col:
 else:
     print('No club/course column detected; will not filter by club')
 
-# build map, filtering to Torshälla when possible
-TARGET_NORM = 'torshall'
-data={}
+# Build maps: per-club and combined
+clubs_map = {}
+combined = {}
 if club_col:
     for _,r in df[[hole_col,score_col,club_col]].iterrows():
         h=r[hole_col]; s=r[score_col]; club=r[club_col]
@@ -72,10 +72,11 @@ if club_col:
             h=int(float(h)); s=int(float(s))
         except Exception:
             continue
-        club_norm = norm(club)
-        if TARGET_NORM in club_norm:  # only include Torshälla GK rows
-            if 1<=h<=18:
-                data.setdefault(str(h),[]).append(s)
+        if not (1<=h<=18):
+            continue
+        club_key = norm(club) or 'okand'
+        clubs_map.setdefault(club_key, {}).setdefault(str(h), []).append(s)
+        combined.setdefault(str(h), []).append(s)
 else:
     for _,r in df[[hole_col,score_col]].iterrows():
         h=r[hole_col]; s=r[score_col]
@@ -83,13 +84,40 @@ else:
             h=int(float(h)); s=int(float(s))
         except Exception:
             continue
-        if 1<=h<=18:
-            data.setdefault(str(h),[]).append(s)
+        if not (1<=h<=18):
+            continue
+        combined.setdefault(str(h), []).append(s)
 
-for k in list(data.keys()): data[k]=sorted(data[k])
-print('counts per hole sample (filtered):', {k:len(v) for k,v in list(data.items())[:6]})
-# write
+# sort lists
+for clubk in clubs_map:
+    for k in list(clubs_map[clubk].keys()):
+        clubs_map[clubk][k] = sorted(clubs_map[clubk][k])
+for k in list(combined.keys()):
+    combined[k] = sorted(combined[k])
+
+# prepare output structure with readable club names
+output = {'all': combined}
+# try to keep original club display names (first occurrence)
+club_display = {}
+if club_col:
+    for _,r in df[[club_col]].iterrows():
+        c = r[club_col]
+        if c is None: continue
+        k = norm(c)
+        if k not in club_display:
+            club_display[k] = str(c)
+for k,v in clubs_map.items():
+    output[k] = v
+
+print('clubs detected:', list(clubs_map.keys())[:10])
+print('counts per hole sample (combined):', {k:len(v) for k,v in list(combined.items())[:6]})
+
+# write both files
 os.makedirs('assets/data', exist_ok=True)
 with open('assets/data/hole_scores.json','w',encoding='utf-8') as f:
-    json.dump(data,f,ensure_ascii=False,indent=2)
-print('WROTE assets/data/hole_scores.json total_rows', sum(len(v) for v in data.values()))
+    json.dump(combined,f,ensure_ascii=False,indent=2)
+with open('assets/data/hole_scores_by_club.json','w',encoding='utf-8') as f:
+    json.dump(output,f,ensure_ascii=False,indent=2)
+print('WROTE assets/data/hole_scores.json total_rows', sum(len(v) for v in combined.values()))
+print('WROTE assets/data/hole_scores_by_club.json clubs', len(list(output.keys())))
+
