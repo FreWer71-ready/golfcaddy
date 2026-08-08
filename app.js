@@ -55,6 +55,8 @@ function render(){
   // Advice moved above sketch
   const adviceCard = `<div class="card advice"><small>PERSONLIGT RÅD</small><h3>${h.par===3?club(eff)[0]:'Spela för position'}</h3><div style="white-space:pre-wrap">${aiAdvice(h)}</div><p class="note">Klubbdistanserna är rangevärden från matta och rangebollar.</p></div>`;
   document.querySelector('#caddy').innerHTML=`<div class="card hero"><div class="badges"><span class="badge">Par ${h.par}</span><span class="badge">Index ${h.index}</span></div><small>HÅL</small><h2>${h.hole}</h2><div>Tee 2</div><div class="distance">${h.distance} m</div></div>${adviceCard}${sketch(h)}<div class="card"><small style="color:#047857;font-weight:800">PERSONLIG HÅLSTATISTIK</small><h3 style="margin:5px 0">Underlag för hål ${h.hole}</h3><div class="legend">Resultatsammanfattningen omfattar 19 ronder och redovisar samlade hålutfall, inte specifika hålnummer.</div><div class="grid" style="margin-top:10px"><div class="metric">Puttar/hål<b>${h.par===3?HS.putt3:HS.putt45}</b></div><div class="metric">Fairway<b>${h.par===3?'Ej tillämpligt':'46 %'}</b></div><div class="metric">GIR<b>5 %</b></div></div><div class="historygrid"><div>Birdie<b>${HS.birdie}</b></div><div>Par<b>${HS.par}</b></div><div>Bogey<b>${HS.bogey}</b></div><div>Dubbel<b>${HS.double}</b></div><div>Sämre<b>${HS.worse}</b></div></div></div><div class="card row"><b>Vindjustering</b><div class="stepper"><button onclick="wind--;render()">−</button> <b>${wind>0?'+':''}${wind} m/s</b> <button onclick="wind++;render()">+</button></div></div><div class="nav"><button class="button" onclick="move(-1)" ${i===0?'disabled':''}>‹ Föregående</button><button class="button primary" onclick="move(1)" ${i===17?'disabled':''}>Nästa ›</button></div>`;
+  // Update hole-specific stats in profile when rendering a different hole
+  try{ renderHoleScores(); }catch(e){/* ignore if profile not mounted yet */}
 }
 
 /* Score tab removed */
@@ -63,9 +65,16 @@ function render(){
 document.querySelector('#profile').innerHTML=`<div class="card advice"><small>PERSONLIG NULÄGESBILD</small><h3>Fredrik, HCP ${P.hcp}</h3><div class="score" style="color:#bef264">−${P.hcpImprovement}</div><div>HCP sedan första registrerade rond</div></div><div class="grid">${[['Snittpoäng',P.avgPoints],['Torshälla',P.torshallaAvg],['Fairway',P.fairway+' %'],['Greenträff',P.gir+' %'],['Puttar/rond',P.putts],['Ronder',P.rounds]].map(x=>`<div class="metric">${x[0]}<b>${x[1]}</b></div>`).join('')}</div><div class="card" id="hole-stats"><small>Hålscorer</small><div style="margin-top:8px"><label for="club-filter">Filtrera på bana:</label> <select id="club-filter"><option value="all">Alla klubbar</option></select></div><div id="hole-scores-list">Laddar…</div></div><div class="card"><b>Caddyns fokus</b><p>• Välj mer klubba. 32 % av greenmissarna är korta.</p><p>• Sikta vänster om centrum. 28 % av greenmissarna är höger.</p><p>• Prioritera fairway och träna lagputtning.</p></div>`;
 let clubData = {};
 function renderHoleScores(){
-  const data = clubData[selectedClub]||{};
-  const list = Object.keys(data).sort((a,b)=>a-b).map(h=>`<div class="metric">Hål ${h}<b>${data[h].join(', ')}</b></div>`).join('');
-  document.getElementById('hole-scores-list').innerHTML = list?`<div class="grid">${list}</div>`:'<div>Ingen data för valt filter</div>';
+  const holeNum = H[i].hole;
+  const data = (clubData[selectedClub] && clubData[selectedClub][String(holeNum)]) || [];
+  if(!data || data.length===0){
+    document.getElementById('hole-scores-list').innerHTML = '<div>Ingen data för valt filter och hål</div>';
+    return;
+  }
+  const count = data.length;
+  const avg = Math.round((data.reduce((a,b)=>a+b,0)/count)*10)/10;
+  const recent = data.slice(-5).reverse().join(', ');
+  document.getElementById('hole-scores-list').innerHTML = `<div class="grid"><div class="metric">Hål ${holeNum}<b></b></div><div class="metric">Ronder<b>${count}</b></div><div class="metric">Snitt<b>${avg}</b></div></div><div style="margin-top:8px">Senaste: ${recent}</div>`;
 }
 fetch('assets/data/hole_scores_by_club.json'+TAG).then(r=>r.json()).then(data=>{
   clubData = data || {};
