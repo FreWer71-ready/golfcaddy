@@ -47,11 +47,7 @@ function aiAdvice(h){
   const ans = `REKOMMENDATION\n${rec}\n\nSPELA SLAGET\n${play}\n\nVARFÖR\n${why}\n\nMÅLSCORE\n${goal}\n\nSÄKERHET\n${safety}`;
   return ans;
 }
-<<<<<<< HEAD
 function sketch(h){const tag = TAG; const src = `assets/holes/hole${h.hole}.jpg${tag}`;return `<div class="card sketch"><b>Hålskiss · hål ${h.hole}</b><img src="${src}" alt="Hål ${h.hole}" style="width:100%;height:auto;border-radius:12px" onerror="this.src='assets/banguide.jpg'+TAG"/><div class="legend">Officiell hålskiss från Torshälla GK. Klicka nedan för detaljerad banguide.</div><a class="official" href="https://torshallagk.se/spela/banan/" target="_blank" rel="noopener noreferrer">Öppna Torshälla GK:s officiella banguide</a></div>`}
-=======
-function sketch(h){const tag = TAG; const src = `assets/holes/hole${h.hole}.jpg${tag}`;return `<div class="card sketch"><b>Hålskiss · hål ${h.hole}</b><img src="${src}" alt="Hål ${h.hole}" style="width:100%;height:auto;border-radius:12px" onerror="this.src='assets/banguide.jpg'+TAG"/><div class="legend">Officiell hålskiss från Torshälla GK. Klicka nedan för detaljerad banguide.</div><a class="official" href="https://torshallagk.se/spela/banan/" target="_blank" rel="noopener noreferrer">Öppna Torshälla GK:s officiella banguide</a></div>`}
->>>>>>> origin/main
 function render(){
   let h=H[i],eff=Math.max(1,h.distance+wind*2),s=scores[h.hole]??h.par;
   // Advice moved above sketch
@@ -71,11 +67,7 @@ function renderHoleScores(){
   const list = Object.keys(data).sort((a,b)=>a-b).map(h=>`<div class="metric">Hål ${h}<b>${data[h].join(', ')}</b></div>`).join('');
   document.getElementById('hole-scores-list').innerHTML = list?`<div class="grid">${list}</div>`:'<div>Ingen data för valt filter</div>';
 }
-<<<<<<< HEAD
 fetch('assets/data/hole_scores_by_club.json'+TAG).then(r=>r.json()).then(data=>{
-=======
-fetch('assets/data/hole_scores_by_club.json'+TAG).then(r=>r.json()).then(data=>{
->>>>>>> origin/main
   clubData = data || {};
   // populate select
   const sel = document.getElementById('club-filter');
