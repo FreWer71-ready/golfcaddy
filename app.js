@@ -88,8 +88,36 @@ function render(){
 /* Score tab removed */
 
 // profile + data fetch
-document.querySelector('#profile').innerHTML=`<div class="card advice"><small>PERSONLIG NULÄGESBILD</small><h3>Fredrik, HCP ${P.hcp}</h3><div class="score" style="color:#bef264">−${P.hcpImprovement}</div><div>HCP sedan första registrerade rond</div></div><div class="grid">${[['Snittpoäng',P.avgPoints],['Torshälla',P.torshallaAvg],['Fairway',P.fairway+' %'],['Greenträff',P.gir+' %'],['Puttar/rond',P.putts],['Ronder',P.rounds]].map(x=>`<div class="metric">${x[0]}<b>${x[1]}</b></div>`).join('')}</div><div class="card" id="hole-stats"><small>Hålscorer</small><div style="margin-top:8px"><label for="club-filter">Filtrera på bana:</label> <select id="club-filter"><option value="all">Alla klubbar</option></select></div><div id="hole-scores-list">Laddar…</div></div><div class="card"><b>Caddyns fokus</b><p>• Välj mer klubba. 32 % av greenmissarna är korta.</p><p>• Sikta vänster om centrum. 28 % av greenmissarna är höger.</p><p>• Prioritera fairway och träna lagputtning.</p></div>`;
+document.querySelector('#profile').innerHTML=`<div class="card advice"><small>PERSONLIG NULÄGESBILD</small><h3>Fredrik, HCP ${P.hcp}</h3><div class="score" style="color:#bef264">−${P.hcpImprovement}</div><div>HCP sedan första registrerade rond</div></div><div class="grid">${[['Snittpoäng',P.avgPoints],['Bana',P.torshallaAvg],['Fairway',P.fairway+' %'],['Greenträff',P.gir+' %'],['Puttar/rond',P.putts]].map(x=>`<div class="metric">${x[0]}<b>${x[1]}</b></div>`).join('')}</div><div class="card" id="hole-stats"><small>Hålscorer</small><div style="margin-top:8px"><div id="hole-scores-list">Laddar…</div></div></div><div class="card"><b>Caddyns fokus</b><p>• Välj mer klubba. 32 % av greenmissarna är korta.</p><p>• Sikta vänster om centrum. 28 % av greenmissarna är höger.</p><p>• Prioritera fairway och träna lagputtning.</p></div>`;
 let clubData = {};
+function computeClubStats(clubKey){
+  const data = clubData[clubKey] || {};
+  // determine number of full rounds (all 18 holes present at index)
+  const holeKeys = H.map(h=>String(h.hole));
+  if(holeKeys.some(h=>!data[h]||data[h].length===0)){
+    // if any hole missing entirely, rounds likely zero
+  }
+  const lengths = holeKeys.map(h=> (data[h]||[]).length );
+  const roundsCount = Math.min(...lengths);
+  if(!roundsCount || roundsCount<=0) return {rounds:0,best:null};
+  const totals = [];
+  for(let ri=0;ri<roundsCount;ri++){
+    let sum = 0; for(const hk of holeKeys){ sum += (data[hk][ri]||0); } totals.push(sum);
+  }
+  const best = Math.min(...totals);
+  return {rounds: roundsCount, best};
+}
+function updateHeaderStats(){
+  try{
+    const key = selectedClub || 'all';
+    const stats = computeClubStats(key);
+    document.getElementById('stat-rounds').textContent = stats.rounds || 0;
+    document.getElementById('stat-best').textContent = stats.best || '-';
+    // update header club name
+    const name = (document.getElementById('club-header-select') && document.getElementById('club-header-select').selectedOptions[0]) ? document.getElementById('club-header-select').selectedOptions[0].textContent : document.getElementById('header-club-name').textContent;
+    document.getElementById('header-club-name').textContent = name || 'Torshälla GK';
+  }catch(e){console.warn('updateHeaderStats failed',e)}
+}
 function renderHoleScores(){
   const holeNum = H[i].hole;
   const data = (clubData[selectedClub] && clubData[selectedClub][String(holeNum)]) || [];
@@ -104,17 +132,26 @@ function renderHoleScores(){
 }
 fetch('assets/data/hole_scores_by_club.json'+TAG).then(r=>r.json()).then(data=>{
   clubData = data || {};
-  // populate select
-  const sel = document.getElementById('club-filter');
-  // keep 'all' option
+  // populate header select
+  const sel = document.getElementById('club-header-select');
+  if(!sel) return;
+  const allOpt = document.createElement('option'); allOpt.value='all'; allOpt.textContent='Alla klubbar'; sel.appendChild(allOpt);
   Object.keys(clubData).filter(k=>k!=='all').sort().forEach(k=>{
     const opt = document.createElement('option'); opt.value=k; opt.textContent = k.replace(/golfklubb|golfklubb/g,'').replace(/_/g,' ');
     sel.appendChild(opt);
   });
-  sel.onchange = e=>{ selectedClub = e.target.value; renderHoleScores(); };
+  sel.onchange = e=>{ selectedClub = e.target.value; updateHeaderStats(); renderHoleScores(); };
   // default to Torshälla if present
   if(clubData['torshallagolfklubb']){ selectedClub='torshallagolfklubb'; sel.value=selectedClub }
-  renderHoleScores();
+  updateHeaderStats(); renderHoleScores();
+  // setup hole dropdown drilldown
+  const holeBtn = document.getElementById('hole-select-btn');
+  const tabs = document.querySelector('.tabs');
+  const dd = document.createElement('div'); dd.id='hole-dropdown'; dd.className='card hide'; dd.style.position='absolute'; dd.style.right='14px'; dd.style.top='72px'; dd.style.width='200px'; dd.style.padding='8px';
+  dd.innerHTML = H.map(h=>`<div style="margin:4px 0"><button class="holebtn" style="width:100%" onclick="go(${h.hole-1});document.getElementById('hole-dropdown').classList.add('hide');">Hål ${h.hole}</button></div>`).join('');
+  tabs.appendChild(dd);
+  holeBtn.onclick = e=>{ e.stopPropagation(); dd.classList.toggle('hide'); };
+  document.addEventListener('click',()=>{ if(!dd.classList.contains('hide')) dd.classList.add('hide'); });
 }).catch(e=>{document.getElementById('hole-scores-list').textContent='Ingen data'});
 
 function move(d){i=Math.max(0,Math.min(17,i+d));localStorage.gcHole=i;render()}function go(n){i=n;localStorage.gcHole=i;render()}function setScore(n){scores[H[i].hole]=Math.max(1,n);localStorage.gcScores=JSON.stringify(scores);render()}
