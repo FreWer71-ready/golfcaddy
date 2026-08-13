@@ -4,10 +4,10 @@
 <script>
   (function(){
     // Set the app version here (update for each release)
-    window.APP_VERSION = '1.2.9';
+    window.APP_VERSION = '1.3.0';
     // Update title and eyebrow
     try{ document.title = `Fredriks Golfcaddy ${window.APP_VERSION}` }catch(e){}
-    const eb = document.querySelector('.eyebrow'); if(eb) eb.textContent = `FREDRIKS GOLFCADDDY · VERSION ${window.APP_VERSION}`;
+    const eb = document.getElementById('version-text'); if(eb) eb.textContent = `FREDRIKS GOLFCADDY · VERSION ${window.APP_VERSION}`;
     // Append version query to manifest and icons to force cache-bust
     const manifest = document.querySelector('link[rel="manifest"]'); if(manifest) manifest.href = manifest.getAttribute('href') + '?v=' + window.APP_VERSION;
     const icon = document.querySelector('link[rel="apple-touch-icon"]'); if(icon) icon.href = icon.getAttribute('href') + '?v=' + window.APP_VERSION;

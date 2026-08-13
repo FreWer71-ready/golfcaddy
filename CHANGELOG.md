@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [v1.3.0] - 2026-08-13
+- Add selectable distance on the Caddy view: a new "Avstånd" card lets you step (±1 m) or type a custom distance, defaulting to the hole's Tee distance.
+- Recommendation (`aiAdvice`), club pick, and target score now recalculate from the selected distance instead of always using the fixed Tee distance.
+- Distance resets to Tee automatically when navigating to a different hole.
+- Fix: "Välj hål" dropdown was always empty because the version-injection script overwrote the whole `.eyebrow` div (including the `#club-header-select` element) via `textContent`, which made the hole-dropdown setup code bail out early. Now targets `#version-text` only.
+- Bump app version to 1.3.0 for cache-busting.
+
 ## [v1.2.6] - 2026-08-08
 - Move inline JS into app.js and bump in-page asset version to 1.2.6
 - Guard service worker registration to avoid 404/registration crashes
