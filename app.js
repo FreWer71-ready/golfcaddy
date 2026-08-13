@@ -9,6 +9,7 @@ const H=[[4,10,347],[4,6,356],[4,2,378],[3,18,113],[5,4,491],[5,12,480],[4,8,331
 const HS={birdie:1,par:14,bogey:68,double:76,worse:93,putt3:2.0,putt45:2.25};
 const C=[['Driver 909 D-Comp',145,181],['Järn 5 King F9',115,144],['Järn 8 King F9',113,124],['Järn 7 King F9',109,126],['Järn 9 King F9',101,108],['Pitching Wedge',90,93],['Wedge 60°',72,84]];
 let i=+(localStorage.gcHole||0), wind=0; let scores = {}; // global club data for AI advice
+let distOverride = null; // null = använd Tee-avstånd (default), annars valfritt avstånd i meter
 let clubDataGlobal = {}; let clubDisplayNames = {}; let selectedClub = 'all';
 // fetch club-indexed data early so Caddy advice can use history
 fetch('assets/data/hole_scores_by_club.json?v=1.2.6').then(r=>r.json()).then(d=>{ clubDataGlobal = d || {}; }).catch(()=>{ clubDataGlobal = {}; });
@@ -16,9 +17,10 @@ try { scores = JSON.parse(localStorage.gcScores || '{}'); } catch(e) { console.w
 function club(d){if(d>168)return C[0];return C.reduce((a,b)=>Math.abs(b[1]-d)<Math.abs(a[1]-d)?b:a)}
 
 // AI-like heuristic advice generator following provided rules (deterministic, client-side)
-function aiAdvice(h){
+function aiAdvice(h, dist){
   // Required effective distance uses carry-first and accounts for wind as priority
-  const req = Math.max(1, Math.round(h.distance + wind*2));
+  const baseDist = dist!=null ? dist : h.distance;
+  const req = Math.max(1, Math.round(baseDist + wind*2));
   // find clubs that can reach by carry
   const reachable = C.map((c,idx)=>({idx, name:c[0], carry:c[1]})).filter(c=>c.carry>=req);
   let choice;
@@ -77,13 +79,30 @@ function aiAdvice(h){
 }
 function sketch(h){const tag = TAG; const src = `assets/holes/hole${h.hole}.jpg${tag}`;return `<div class="card sketch"><b>Hålskiss · hål ${h.hole}</b><img src="${src}" alt="Hål ${h.hole}" style="width:100%;height:auto;border-radius:12px" onerror="this.src='assets/banguide.jpg'+TAG"/><div class="legend">Officiell hålskiss från Torshälla GK. Klicka nedan för detaljerad banguide.</div><a class="official" href="https://torshallagk.se/spela/banan/" target="_blank" rel="noopener noreferrer">Öppna Torshälla GK:s officiella banguide</a></div>`}
 function render(){
-  let h=H[i],eff=Math.max(1,h.distance+wind*2),s=scores[h.hole]??h.par;
+  let h=H[i];
+  const dist = distOverride!=null ? distOverride : h.distance;
+  const isDefaultDist = distOverride==null;
+  let eff=Math.max(1,dist+wind*2),s=scores[h.hole]??h.par;
   // Advice moved above sketch
-  const adviceCard = `<div class="card advice"><small>PERSONLIGT RÅD</small><h3>${h.par===3?club(eff)[0]:'Spela för position'}</h3><div style="white-space:pre-wrap">${aiAdvice(h)}</div><p class="note">Klubbdistanserna är rangevärden från matta och rangebollar.</p></div>`;
-  document.querySelector('#caddy').innerHTML=`<div class="card hero"><div class="badges"><span class="badge">Par ${h.par}</span><span class="badge">Index ${h.index}</span></div><small>HÅL</small><h2>${h.hole}</h2><div>Tee 2</div><div class="distance">${h.distance} m</div></div>${adviceCard}${sketch(h)}<div class="card"><small style="color:#047857;font-weight:800">PERSONLIG HÅLSTATISTIK</small><h3 style="margin:5px 0">Underlag för hål ${h.hole}</h3><div class="legend">Resultatsammanfattningen omfattar 19 ronder och redovisar samlade hålutfall, inte specifika hålnummer.</div><div class="grid" style="margin-top:10px"><div class="metric">Puttar/hål<b>${h.par===3?HS.putt3:HS.putt45}</b></div><div class="metric">Fairway<b>${h.par===3?'Ej tillämpligt':'46 %'}</b></div><div class="metric">GIR<b>5 %</b></div></div><div class="historygrid"><div>Birdie<b>${HS.birdie}</b></div><div>Par<b>${HS.par}</b></div><div>Bogey<b>${HS.bogey}</b></div><div>Dubbel<b>${HS.double}</b></div><div>Sämre<b>${HS.worse}</b></div></div></div><div class="card row"><b>Vindjustering</b><div class="stepper"><button onclick="wind--;render()">−</button> <b>${wind>0?'+':''}${wind} m/s</b> <button onclick="wind++;render()">+</button></div></div><div class="nav"><button class="button" onclick="move(-1)" ${i===0?'disabled':''}>‹ Föregående</button><button class="button primary" onclick="move(1)" ${i===17?'disabled':''}>Nästa ›</button></div>`;
+  const adviceCard = `<div class="card advice"><small>PERSONLIGT RÅD</small><h3>${h.par===3?club(eff)[0]:'Spela för position'}</h3><div style="white-space:pre-wrap">${aiAdvice(h, dist)}</div><p class="note">Klubbdistanserna är rangevärden från matta och rangebollar.</p></div>`;
+  const distanceCard = `<div class="card row"><b>Avstånd (${isDefaultDist?'Tee':'eget'})</b><div class="stepper"><button onclick="adjustDistance(-1)">−</button> <input id="dist-input" type="number" inputmode="numeric" value="${dist}" style="width:64px;text-align:center;border:1px solid #ddd;border-radius:8px;padding:6px;font-weight:800" onchange="setDistanceValue(this.value)"/> <button onclick="adjustDistance(1)">+</button></div>${isDefaultDist?'':`<button class="button" onclick="resetDistance()">Tee (${h.distance} m)</button>`}</div>`;
+  document.querySelector('#caddy').innerHTML=`<div class="card hero"><div class="badges"><span class="badge">Par ${h.par}</span><span class="badge">Index ${h.index}</span></div><small>HÅL</small><h2>${h.hole}</h2><div>Tee 2</div><div class="distance">${dist} m</div></div>${distanceCard}${adviceCard}${sketch(h)}<div class="card"><small style="color:#047857;font-weight:800">PERSONLIG HÅLSTATISTIK</small><h3 style="margin:5px 0">Underlag för hål ${h.hole}</h3><div class="legend">Resultatsammanfattningen omfattar 19 ronder och redovisar samlade hålutfall, inte specifika hålnummer.</div><div class="grid" style="margin-top:10px"><div class="metric">Puttar/hål<b>${h.par===3?HS.putt3:HS.putt45}</b></div><div class="metric">Fairway<b>${h.par===3?'Ej tillämpligt':'46 %'}</b></div><div class="metric">GIR<b>5 %</b></div></div><div class="historygrid"><div>Birdie<b>${HS.birdie}</b></div><div>Par<b>${HS.par}</b></div><div>Bogey<b>${HS.bogey}</b></div><div>Dubbel<b>${HS.double}</b></div><div>Sämre<b>${HS.worse}</b></div></div></div><div class="card row"><b>Vindjustering</b><div class="stepper"><button onclick="wind--;render()">−</button> <b>${wind>0?'+':''}${wind} m/s</b> <button onclick="wind++;render()">+</button></div></div><div class="nav"><button class="button" onclick="move(-1)" ${i===0?'disabled':''}>‹ Föregående</button><button class="button primary" onclick="move(1)" ${i===17?'disabled':''}>Nästa ›</button></div>`;
   // Update hole-specific stats in profile when rendering a different hole
   try{ renderHoleScores(); }catch(e){/* ignore if profile not mounted yet */}
 }
+function adjustDistance(delta){
+  const h=H[i];
+  const base = distOverride!=null ? distOverride : h.distance;
+  distOverride = Math.max(1, base+delta);
+  render();
+}
+function setDistanceValue(v){
+  const n = parseInt(v,10);
+  const h = H[i];
+  if(!isNaN(n) && n>0){ distOverride = n; } else { distOverride = null; }
+  render();
+}
+function resetDistance(){ distOverride = null; render(); }
 
 /* Score tab removed */
 
@@ -154,7 +173,7 @@ fetch('assets/data/hole_scores_by_club.json'+TAG).then(r=>r.json()).then(data=>{
   document.addEventListener('click',()=>{ if(!dd.classList.contains('hide')) dd.classList.add('hide'); });
 }).catch(e=>{document.getElementById('hole-scores-list').textContent='Ingen data'});
 
-function move(d){i=Math.max(0,Math.min(17,i+d));localStorage.gcHole=i;render()}function go(n){i=n;localStorage.gcHole=i;render()}function setScore(n){scores[H[i].hole]=Math.max(1,n);localStorage.gcScores=JSON.stringify(scores);render()}
+function move(d){i=Math.max(0,Math.min(17,i+d));localStorage.gcHole=i;distOverride=null;render()}function go(n){i=n;localStorage.gcHole=i;distOverride=null;render()}function setScore(n){scores[H[i].hole]=Math.max(1,n);localStorage.gcScores=JSON.stringify(scores);render()}
 
 try{document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');['caddy','profile'].forEach(x=>document.querySelector('#'+x).classList.toggle('hide',x!==b.dataset.tab))});render();}catch(e){console.error('Render failed:',e);const c=document.getElementById('caddy');if(c) c.innerHTML='<div class="card"><b>Fel i UI</b><p>Se konsolen för fel (F12) eller kontakta utvecklaren.</p></div>';}
 
