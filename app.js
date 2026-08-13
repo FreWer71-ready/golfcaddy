@@ -1,6 +1,6 @@
 const P={hcp:33.3,rounds:37,torshallaRounds:30,avgPoints:35.1,torshallaAvg:35.2,bestPoints:45,fairway:46,gir:5,putts:40.3,missRight:28,missShort:32,hcpImprovement:10.7};
 // use APP_VERSION injected into window by index.html; fall back to 1.3.0
-const APP_VERSION = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1.4.0';
+const APP_VERSION = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1.4.1';
 const TAG = APP_VERSION ? `?v=${APP_VERSION}` : '';
 // expose TAG as a global for inline onerror handlers that run in global scope
 window.TAG = TAG;
@@ -116,7 +116,7 @@ function resetDistance(){ distOverride = null; render(); }
 /* Score tab removed */
 
 // profile + data fetch
-document.querySelector('#profile').innerHTML=`<div class="card advice"><small>PERSONLIG NULÄGESBILD</small><h3>Fredrik, HCP ${P.hcp}</h3><div class="score" style="color:#bef264">−${P.hcpImprovement}</div><div>HCP sedan första registrerade rond</div></div><div class="grid">${[['Snittpoäng',P.avgPoints],['Bana',P.torshallaAvg],['Fairway',P.fairway+' %'],['Greenträff',P.gir+' %'],['Puttar/rond',P.putts]].map(x=>`<div class="metric">${x[0]}<b>${x[1]}</b></div>`).join('')}</div><div class="card" id="hole-stats"><small>Hålscorer</small><div style="margin-top:8px"><div id="hole-scores-list">Laddar…</div></div></div><div class="card"><b>Caddyns fokus</b><p>• Välj mer klubba. 32 % av greenmissarna är korta.</p><p>• Sikta vänster om centrum. 28 % av greenmissarna är höger.</p><p>• Prioritera fairway och träna lagputtning.</p></div>`;
+document.querySelector('#profile').innerHTML=`<div class="card advice"><small id="profile-hole-label">PERSONLIGA RESULTAT PÅ HÅL ${H[i].hole}</small><h3>Fredrik, HCP ${P.hcp}</h3><div class="score" style="color:#bef264">−${P.hcpImprovement}</div><div>HCP sedan första registrerade rond</div><div style="margin-top:14px"><div id="hole-scores-list">Laddar…</div></div></div><div class="grid">${[['Snittpoäng',P.avgPoints],['Bana',P.torshallaAvg],['Fairway',P.fairway+' %'],['Greenträff',P.gir+' %'],['Puttar/rond',P.putts]].map(x=>`<div class="metric">${x[0]}<b>${x[1]}</b></div>`).join('')}</div><div class="card"><b>Caddyns fokus</b><p>• Välj mer klubba. 32 % av greenmissarna är korta.</p><p>• Sikta vänster om centrum. 28 % av greenmissarna är höger.</p><p>• Prioritera fairway och träna lagputtning.</p></div>`;
 function computeClubStats(){
   const data = holeScores;
   // determine number of full rounds (all 18 holes present at index)
@@ -141,6 +141,8 @@ function updateHeaderStats(){
 }
 function renderHoleScores(){
   const holeNum = H[i].hole;
+  const label = document.getElementById('profile-hole-label');
+  if(label) label.textContent = `PERSONLIGA RESULTAT PÅ HÅL ${holeNum}`;
   const data = holeScores[String(holeNum)] || [];
   if(!data || data.length===0){
     document.getElementById('hole-scores-list').innerHTML = '<div>Ingen data för valt hål</div>';

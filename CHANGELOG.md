@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## [v1.4.1] - 2026-08-13
+- UI (Min statistik): slog ihop "Personlig nuläsgesbild"-kortet och det separata "Hålscorer"-kortet till ett kort. Rubriken byter namn till "PERSONLIGA RESULTAT PÅ HÅL {hål}" och uppdateras dynamiskt när man byter hål (via `renderHoleScores()`); hålscore-infot (Ronder/Snitt/Senaste) visas nu direkt i samma kort istället för i ett eget kort under.
+- Bump APP_VERSION to 1.4.1.
+
 ## [v1.4.0] - 2026-08-13
 - Data: hålstatistiken byter format till ett platt objekt `{ "1": [scorer...], ..., "18": [...] }` i `assets/data/hole_scores.json`, uppdaterad med nya rondvärden. Det klubb-nästlade `hole_scores_by_club.json` (all/torshallagolfklubb/eskilstunagolfklubb/kvicksundgolfklubb) behövs inte längre sedan appen låstes till enbart Torshälla GK (v1.3.1) och används inte längre av `app.js` — filen ligger kvar orörd men oanvänd.
 - Kod: konsoliderade de två separata klubb-nästlade fetcharna (`clubDataGlobal`/`clubData`) till en enda `holeScores`-variabel som hämtas en gång från `hole_scores.json` och används rakt av av `aiAdvice` (hål-historik), `computeClubStats` (header-statistik) och `renderHoleScores` (Min statistik). Tog samtidigt bort de nu obehövliga `selectedClub`/`clubDisplayNames`.
