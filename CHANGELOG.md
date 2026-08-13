@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [v1.3.1] - 2026-08-13
+- Fix: club-header-select (byt-klubb-listan) gjorde att man kunde "byta bana" i headern utan att hålskisser, avstånd, par/index eller annan hålinformation följde med (de är och förblir Torshälla-specifika). Appen är nu medvetet anpassad enbart för Torshälla GK — klubbväljaren är borttagen och `selectedClub` är låst till `torshallagolfklubb`.
+- Data: rättat hål 16 — avståndet var felaktigt satt till Vit tees längd (379 m) istället för Gul tee (331 m), som alla andra håls avstånd i appen är baserade på.
+- Verifierat samtliga 18 håls par, hcp-index och avstånd (gul tee) mot https://torshallagk.se/spela/banan/ — alla övriga hål stämde redan.
+- Bump app version to 1.3.1.
+
 ## [v1.3.0] - 2026-08-13
 - Add selectable distance on the Caddy view: a new "Avstånd" card lets you step (±1 m) or type a custom distance, defaulting to the hole's Tee distance.
 - Recommendation (`aiAdvice`), club pick, and target score now recalculate from the selected distance instead of always using the fixed Tee distance.

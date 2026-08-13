@@ -1,16 +1,17 @@
 const P={hcp:33.3,rounds:37,torshallaRounds:30,avgPoints:35.1,torshallaAvg:35.2,bestPoints:45,fairway:46,gir:5,putts:40.3,missRight:28,missShort:32,hcpImprovement:10.7};
 // use APP_VERSION injected into window by index.html; fall back to 1.3.0
-const APP_VERSION = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1.3.0';
+const APP_VERSION = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1.3.1';
 const TAG = APP_VERSION ? `?v=${APP_VERSION}` : '';
 // expose TAG as a global for inline onerror handlers that run in global scope
 window.TAG = TAG;
 
-const H=[[4,10,347],[4,6,356],[4,2,378],[3,18,113],[5,4,491],[5,12,480],[4,8,331],[3,16,140],[4,14,304],[4,9,335],[5,13,497],[3,11,166],[4,5,326],[4,3,347],[3,17,114],[4,1,379],[4,7,363],[5,15,435]].map((x,i)=>({hole:i+1,par:x[0],index:x[1],distance:x[2]}));
+// Hål-data (par, hcp-index, avstånd gul tee i meter) verifierad mot https://torshallagk.se/spela/banan/ 2026-08-13
+const H=[[4,10,347],[4,6,356],[4,2,378],[3,18,113],[5,4,491],[5,12,480],[4,8,331],[3,16,140],[4,14,304],[4,9,335],[5,13,497],[3,11,166],[4,5,326],[4,3,347],[3,17,114],[4,1,331],[4,7,363],[5,15,435]].map((x,i)=>({hole:i+1,par:x[0],index:x[1],distance:x[2]}));
 const HS={birdie:1,par:14,bogey:68,double:76,worse:93,putt3:2.0,putt45:2.25};
 const C=[['Driver 909 D-Comp',145,181],['Järn 5 King F9',115,144],['Järn 8 King F9',113,124],['Järn 7 King F9',109,126],['Järn 9 King F9',101,108],['Pitching Wedge',90,93],['Wedge 60°',72,84]];
 let i=+(localStorage.gcHole||0), wind=0; let scores = {}; // global club data for AI advice
 let distOverride = null; // null = använd Tee-avstånd (default), annars valfritt avstånd i meter
-let clubDataGlobal = {}; let clubDisplayNames = {}; let selectedClub = 'all';
+let clubDataGlobal = {}; let clubDisplayNames = {}; const selectedClub = 'torshallagolfklubb'; // appen är anpassad enbart för Torshälla GK
 // fetch club-indexed data early so Caddy advice can use history
 fetch('assets/data/hole_scores_by_club.json?v=1.2.6').then(r=>r.json()).then(d=>{ clubDataGlobal = d || {}; }).catch(()=>{ clubDataGlobal = {}; });
 try { scores = JSON.parse(localStorage.gcScores || '{}'); } catch(e) { console.warn('Failed to parse gcScores, removing invalid value:', e); localStorage.removeItem('gcScores'); scores = {}; }
@@ -41,9 +42,8 @@ function aiAdvice(h, dist){
     choice = {name: pick.name, carry: pick.carry, toGreen:true};
   }
 
-  // History for hole
-  const clubKey = clubDataGlobal['torshallagolfklubb'] ? 'torshallagolfklubb' : (Object.keys(clubDataGlobal).find(k=>k!=='all')||'all');
-  const hist = (clubDataGlobal[selectedClub] && clubDataGlobal[selectedClub][String(h.hole)]) || (clubDataGlobal[clubKey] && clubDataGlobal[clubKey][String(h.hole)]) || [];
+  // History for hole (Torshälla GK)
+  const hist = (clubDataGlobal[selectedClub] && clubDataGlobal[selectedClub][String(h.hole)]) || [];
   const histCount = hist.length;
   const histAvg = histCount? Math.round((hist.reduce((a,b)=>a+b,0)/histCount)*10)/10 : null;
 
@@ -128,13 +128,10 @@ function computeClubStats(clubKey){
 }
 function updateHeaderStats(){
   try{
-    const key = selectedClub || 'all';
-    const stats = computeClubStats(key);
+    const stats = computeClubStats(selectedClub);
     document.getElementById('stat-rounds').textContent = stats.rounds || 0;
     document.getElementById('stat-best').textContent = stats.best || '-';
-    // update header club name
-    const name = (document.getElementById('club-header-select') && document.getElementById('club-header-select').selectedOptions[0]) ? document.getElementById('club-header-select').selectedOptions[0].textContent : document.getElementById('header-club-name').textContent;
-    document.getElementById('header-club-name').textContent = name || 'Torshälla GK';
+    document.getElementById('header-club-name').textContent = 'Torshälla GK';
   }catch(e){console.warn('updateHeaderStats failed',e)}
 }
 function renderHoleScores(){
@@ -151,17 +148,6 @@ function renderHoleScores(){
 }
 fetch('assets/data/hole_scores_by_club.json'+TAG).then(r=>r.json()).then(data=>{
   clubData = data || {};
-  // populate header select
-  const sel = document.getElementById('club-header-select');
-  if(!sel) return;
-  const allOpt = document.createElement('option'); allOpt.value='all'; allOpt.textContent='Alla klubbar'; sel.appendChild(allOpt);
-  Object.keys(clubData).filter(k=>k!=='all').sort().forEach(k=>{
-    const opt = document.createElement('option'); opt.value=k; opt.textContent = k.replace(/golfklubb|golfklubb/g,'').replace(/_/g,' ');
-    sel.appendChild(opt);
-  });
-  sel.onchange = e=>{ selectedClub = e.target.value; updateHeaderStats(); renderHoleScores(); };
-  // default to Torshälla if present
-  if(clubData['torshallagolfklubb']){ selectedClub='torshallagolfklubb'; sel.value=selectedClub }
   updateHeaderStats(); renderHoleScores();
   // setup hole dropdown drilldown
   const holeBtn = document.getElementById('hole-select-btn');
