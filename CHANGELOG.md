@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## [v1.4.0] - 2026-08-13
+- Data: hålstatistiken byter format till ett platt objekt `{ "1": [scorer...], ..., "18": [...] }` i `assets/data/hole_scores.json`, uppdaterad med nya rondvärden. Det klubb-nästlade `hole_scores_by_club.json` (all/torshallagolfklubb/eskilstunagolfklubb/kvicksundgolfklubb) behövs inte längre sedan appen låstes till enbart Torshälla GK (v1.3.1) och används inte längre av `app.js` — filen ligger kvar orörd men oanvänd.
+- Kod: konsoliderade de två separata klubb-nästlade fetcharna (`clubDataGlobal`/`clubData`) till en enda `holeScores`-variabel som hämtas en gång från `hole_scores.json` och används rakt av av `aiAdvice` (hål-historik), `computeClubStats` (header-statistik) och `renderHoleScores` (Min statistik). Tog samtidigt bort de nu obehövliga `selectedClub`/`clubDisplayNames`.
+- Bump APP_VERSION to 1.4.0.
+
+## [v1.3.4] - 2026-08-13
+- Fix: v1.3.3's "Driver only from tee" rule was too loose — since the bag has a big gap between Järn 5 (115 m snitt) and Driver (145 m snitt), *every* tee distance from 116–497 m ended up recommending Driver, including par-3 tee shots (t.ex. hål 8: 140 m, hål 12: 166 m) where the shot always targets the green directly, not a fairway landing area.
+- Tightened the rule: Driver is only ever recommended for a tee shot on a par 4/5 (`allowDriver = isDefaultDist && h.par !== 3`) — a genuine positional shot, not a shot aimed at a green. Par-3 tee shots and all custom/eget-avstånd shots now always exclude Driver and fall back to the longest suitable club (t.ex. Järn 5) instead.
+- Bump APP_VERSION to 1.3.4.
+
 ## [v1.3.3] - 2026-08-13
 - Rule: Driver ska bara rekommenderas för slag från tee. `club()` and `aiAdvice()` now take a `fromTee` flag — when advice is generated for a custom/typed-in distance (i.e. not the hole's default Tee distance), Driver is excluded from the candidate bag entirely, both for the reachable-club pick and the "nothing reaches" transport-shot fallback (which now falls back to the longest non-Driver club instead of Driver). Tee shots (default distance) are unaffected.
 - Confirmed per user: current club-average data in `C` (Järn 7/Järn 8) reflects real range stats as of today and may change over time — left untouched.

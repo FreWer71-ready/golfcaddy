@@ -1,6 +1,6 @@
 const P={hcp:33.3,rounds:37,torshallaRounds:30,avgPoints:35.1,torshallaAvg:35.2,bestPoints:45,fairway:46,gir:5,putts:40.3,missRight:28,missShort:32,hcpImprovement:10.7};
 // use APP_VERSION injected into window by index.html; fall back to 1.3.0
-const APP_VERSION = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1.3.3';
+const APP_VERSION = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1.4.0';
 const TAG = APP_VERSION ? `?v=${APP_VERSION}` : '';
 // expose TAG as a global for inline onerror handlers that run in global scope
 window.TAG = TAG;
@@ -11,32 +11,32 @@ const HS={birdie:1,par:14,bogey:68,double:76,worse:93,putt3:2.0,putt45:2.25};
 const C=[['Driver 909 D-Comp',145,181],['Järn 5 King F9',115,144],['Järn 8 King F9',113,124],['Järn 7 King F9',109,126],['Järn 9 King F9',101,108],['Pitching Wedge',90,93],['Wedge 60°',72,84]];
 let i=+(localStorage.gcHole||0), wind=0; let scores = {}; // global club data for AI advice
 let distOverride = null; // null = använd Tee-avstånd (default), annars valfritt avstånd i meter
-let clubDataGlobal = {}; let clubDisplayNames = {}; const selectedClub = 'torshallagolfklubb'; // appen är anpassad enbart för Torshälla GK
-// fetch club-indexed data early so Caddy advice can use history
-fetch('assets/data/hole_scores_by_club.json?v=1.2.6').then(r=>r.json()).then(d=>{ clubDataGlobal = d || {}; }).catch(()=>{ clubDataGlobal = {}; });
+// Hål-indexerad scorehistorik för Torshälla GK: { "1": [scorer...], "2": [...], ... }
+let holeScores = {};
 try { scores = JSON.parse(localStorage.gcScores || '{}'); } catch(e) { console.warn('Failed to parse gcScores, removing invalid value:', e); localStorage.removeItem('gcScores'); scores = {}; }
 // Väljer klubban med kortast snittlängd (rangestatistik i C) som ändå når d.
-// Driver får bara rekommenderas för slag från Tee — fromTee=false utesluter den ur bagen.
+// allowDriver=false utesluter Driver ur bagen — Driver ska bara kunna väljas för tee-slag på par 4/5
+// (positionsslag mot fairway), aldrig för slag riktade mot en green (par 3, eller eget/inskrivet avstånd).
 // Om ingen klubb når på snittlängd faller vi tillbaka på längsta tillgängliga klubb i bagen som transportslag.
 // Används av både rubriken (par 3) och aiAdvice, så de aldrig kan visa olika klubbor för samma längd.
-function club(d, fromTee){
+function club(d, allowDriver){
   const driverName = C[0][0];
-  const bag = fromTee===false ? C.filter(c=>c[0]!==driverName) : C;
+  const bag = allowDriver===false ? C.filter(c=>c[0]!==driverName) : C;
   const reachable = bag.filter(c=>c[1]>=d).sort((a,b)=>a[1]-b[1]);
   return reachable.length ? reachable[0] : bag.reduce((a,b)=>b[1]>a[1]?b:a);
 }
 
 // AI-like heuristic advice generator following provided rules (deterministic, client-side)
-// fromTee: true om avståndet är hålets ordinarie Tee-avstånd, false om det är ett eget/inskrivet avstånd
-// (dvs. inte ett tee-slag) — Driver ska då aldrig rekommenderas.
-function aiAdvice(h, dist, fromTee){
-  const isFromTee = fromTee !== false;
+// allowDriver: true bara för tee-slag på par 4/5 (positionsslag). Alla slag mot en green — par 3-tee
+// eller eget/inskrivet avstånd på valfritt hål — utesluter Driver, oavsett om den räcker på snittlängd.
+function aiAdvice(h, dist, allowDriver){
+  const canUseDriver = allowDriver === true;
   // Required effective distance uses carry-first and accounts for wind as priority
   const baseDist = dist!=null ? dist : h.distance;
   const req = Math.max(1, Math.round(baseDist + wind*2));
   // find the shortest club (by average carry) that reaches; club() also drives the h3-rubriken ovan
   const driverName = C[0][0];
-  const bag = isFromTee ? C : C.filter(c=>c[0]!==driverName);
+  const bag = canUseDriver ? C : C.filter(c=>c[0]!==driverName);
   const reachable = bag.filter(c=>c[1]>=req);
   let choice;
   if(reachable.length===0){
@@ -44,12 +44,12 @@ function aiAdvice(h, dist, fromTee){
     const longest = bag.reduce((a,b)=>b[1]>a[1]?b:a);
     choice = {name: longest[0], carry: longest[1], toGreen:false};
   } else {
-    const pick = club(req, isFromTee);
+    const pick = club(req, canUseDriver);
     choice = {name: pick[0], carry: pick[1], toGreen:true};
   }
 
   // History for hole (Torshälla GK)
-  const hist = (clubDataGlobal[selectedClub] && clubDataGlobal[selectedClub][String(h.hole)]) || [];
+  const hist = holeScores[String(h.hole)] || [];
   const histCount = hist.length;
   const histAvg = histCount? Math.round((hist.reduce((a,b)=>a+b,0)/histCount)*10)/10 : null;
 
@@ -89,8 +89,11 @@ function render(){
   const dist = distOverride!=null ? distOverride : h.distance;
   const isDefaultDist = distOverride==null;
   let eff=Math.max(1,dist+wind*2),s=scores[h.hole]??h.par;
+  // Driver är bara rimlig för ett tee-slag som söker position (par 4/5) — aldrig för ett slag riktat
+  // mot en green (par 3-tee, eller ett eget/inskrivet avstånd på valfritt hål).
+  const allowDriver = isDefaultDist && h.par!==3;
   // Advice moved above sketch
-  const adviceCard = `<div class="card advice"><small>PERSONLIGT RÅD</small><h3>${h.par===3?club(eff, isDefaultDist)[0]:'Spela för position'}</h3><div style="white-space:pre-wrap">${aiAdvice(h, dist, isDefaultDist)}</div><p class="note">Klubbdistanserna är rangevärden från matta och rangebollar. Driver rekommenderas endast från tee.</p></div>`;
+  const adviceCard = `<div class="card advice"><small>PERSONLIGT RÅD</small><h3>${h.par===3?club(eff, allowDriver)[0]:'Spela för position'}</h3><div style="white-space:pre-wrap">${aiAdvice(h, dist, allowDriver)}</div><p class="note">Klubbdistanserna är rangevärden från matta och rangebollar. Driver rekommenderas endast för tee-slag på par 4/5.</p></div>`;
   const distanceCard = `<div class="card row"><b>Avstånd (${isDefaultDist?'Tee':'eget'})</b><div class="stepper"><button onclick="adjustDistance(-1)">−</button> <input id="dist-input" type="number" inputmode="numeric" value="${dist}" style="width:64px;text-align:center;border:1px solid #ddd;border-radius:8px;padding:6px;font-weight:800" onchange="setDistanceValue(this.value)"/> <button onclick="adjustDistance(1)">+</button></div>${isDefaultDist?'':`<button class="button" onclick="resetDistance()">Tee (${h.distance} m)</button>`}</div>`;
   document.querySelector('#caddy').innerHTML=`<div class="card hero"><div class="badges"><span class="badge">Par ${h.par}</span><span class="badge">Index ${h.index}</span></div><small>HÅL</small><h2>${h.hole}</h2><div>Tee 2</div><div class="distance">${dist} m</div></div>${distanceCard}${adviceCard}${sketch(h)}<div class="card"><small style="color:#047857;font-weight:800">PERSONLIG HÅLSTATISTIK</small><h3 style="margin:5px 0">Underlag för hål ${h.hole}</h3><div class="legend">Resultatsammanfattningen omfattar 19 ronder och redovisar samlade hålutfall, inte specifika hålnummer.</div><div class="grid" style="margin-top:10px"><div class="metric">Puttar/hål<b>${h.par===3?HS.putt3:HS.putt45}</b></div><div class="metric">Fairway<b>${h.par===3?'Ej tillämpligt':'46 %'}</b></div><div class="metric">GIR<b>5 %</b></div></div><div class="historygrid"><div>Birdie<b>${HS.birdie}</b></div><div>Par<b>${HS.par}</b></div><div>Bogey<b>${HS.bogey}</b></div><div>Dubbel<b>${HS.double}</b></div><div>Sämre<b>${HS.worse}</b></div></div></div><div class="card row"><b>Vindjustering</b><div class="stepper"><button onclick="wind--;render()">−</button> <b>${wind>0?'+':''}${wind} m/s</b> <button onclick="wind++;render()">+</button></div></div><div class="nav"><button class="button" onclick="move(-1)" ${i===0?'disabled':''}>‹ Föregående</button><button class="button primary" onclick="move(1)" ${i===17?'disabled':''}>Nästa ›</button></div>`;
   // Update hole-specific stats in profile when rendering a different hole
@@ -114,14 +117,10 @@ function resetDistance(){ distOverride = null; render(); }
 
 // profile + data fetch
 document.querySelector('#profile').innerHTML=`<div class="card advice"><small>PERSONLIG NULÄGESBILD</small><h3>Fredrik, HCP ${P.hcp}</h3><div class="score" style="color:#bef264">−${P.hcpImprovement}</div><div>HCP sedan första registrerade rond</div></div><div class="grid">${[['Snittpoäng',P.avgPoints],['Bana',P.torshallaAvg],['Fairway',P.fairway+' %'],['Greenträff',P.gir+' %'],['Puttar/rond',P.putts]].map(x=>`<div class="metric">${x[0]}<b>${x[1]}</b></div>`).join('')}</div><div class="card" id="hole-stats"><small>Hålscorer</small><div style="margin-top:8px"><div id="hole-scores-list">Laddar…</div></div></div><div class="card"><b>Caddyns fokus</b><p>• Välj mer klubba. 32 % av greenmissarna är korta.</p><p>• Sikta vänster om centrum. 28 % av greenmissarna är höger.</p><p>• Prioritera fairway och träna lagputtning.</p></div>`;
-let clubData = {};
-function computeClubStats(clubKey){
-  const data = clubData[clubKey] || {};
+function computeClubStats(){
+  const data = holeScores;
   // determine number of full rounds (all 18 holes present at index)
   const holeKeys = H.map(h=>String(h.hole));
-  if(holeKeys.some(h=>!data[h]||data[h].length===0)){
-    // if any hole missing entirely, rounds likely zero
-  }
   const lengths = holeKeys.map(h=> (data[h]||[]).length );
   const roundsCount = Math.min(...lengths);
   if(!roundsCount || roundsCount<=0) return {rounds:0,best:null};
@@ -134,7 +133,7 @@ function computeClubStats(clubKey){
 }
 function updateHeaderStats(){
   try{
-    const stats = computeClubStats(selectedClub);
+    const stats = computeClubStats();
     document.getElementById('stat-rounds').textContent = stats.rounds || 0;
     document.getElementById('stat-best').textContent = stats.best || '-';
     document.getElementById('header-club-name').textContent = 'Torshälla GK';
@@ -142,9 +141,9 @@ function updateHeaderStats(){
 }
 function renderHoleScores(){
   const holeNum = H[i].hole;
-  const data = (clubData[selectedClub] && clubData[selectedClub][String(holeNum)]) || [];
+  const data = holeScores[String(holeNum)] || [];
   if(!data || data.length===0){
-    document.getElementById('hole-scores-list').innerHTML = '<div>Ingen data för valt filter och hål</div>';
+    document.getElementById('hole-scores-list').innerHTML = '<div>Ingen data för valt hål</div>';
     return;
   }
   const count = data.length;
@@ -152,8 +151,9 @@ function renderHoleScores(){
   const recent = data.slice(-5).reverse().join(', ');
   document.getElementById('hole-scores-list').innerHTML = `<div class="grid"><div class="metric">Hål ${holeNum}<b></b></div><div class="metric">Ronder<b>${count}</b></div><div class="metric">Snitt<b>${avg}</b></div></div><div style="margin-top:8px">Senaste: ${recent}</div>`;
 }
-fetch('assets/data/hole_scores_by_club.json'+TAG).then(r=>r.json()).then(data=>{
-  clubData = data || {};
+// Hål-indexerad scorehistorik (Torshälla GK, platt format: { "hål": [scorer...] })
+fetch('assets/data/hole_scores.json'+TAG).then(r=>r.json()).then(data=>{
+  holeScores = data || {};
   updateHeaderStats(); renderHoleScores();
   // setup hole dropdown drilldown
   const holeBtn = document.getElementById('hole-select-btn');
