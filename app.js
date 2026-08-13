@@ -1,6 +1,6 @@
 const P={hcp:33.3,rounds:37,torshallaRounds:30,avgPoints:35.1,torshallaAvg:35.2,bestPoints:45,fairway:46,gir:5,putts:40.3,missRight:28,missShort:32,hcpImprovement:10.7};
 // use APP_VERSION injected into window by index.html; fall back to 1.3.0
-const APP_VERSION = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1.5.0';
+const APP_VERSION = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1.5.1';
 const TAG = APP_VERSION ? `?v=${APP_VERSION}` : '';
 // expose TAG as a global for inline onerror handlers that run in global scope
 window.TAG = TAG;
@@ -125,7 +125,7 @@ function resetDistance(){ distOverride = null; render(); }
 /* Score tab removed */
 
 // Min statistik: rent hål-fokuserad — resultat, snittpoäng och snittscore för valt hål (se renderHoleScores)
-document.querySelector('#profile').innerHTML=`<div class="card advice"><small id="profile-hole-label">PERSONLIGA RESULTAT PÅ HÅL ${H[i].hole}</small><div style="margin-top:10px"><div id="hole-scores-list">Laddar…</div></div></div>`;
+document.querySelector('#profile').innerHTML=`<div class="card advice"><div class="row" style="align-items:flex-start"><small id="profile-hole-label">PERSONLIGA RESULTAT PÅ HÅL ${H[i].hole}</small><span id="profile-rounds-badge" class="roundsbadge"></span></div><div id="hole-scores-list">Laddar…</div></div>`;
 // Mitt Spel: övergripande statistik för hela spelet (handikap, utveckling, snitt, Caddy-analys)
 document.querySelector('#game').innerHTML=`<div class="card advice"><small>MITT SPEL</small><h3>Fredrik, HCP ${P.hcp}</h3><div class="score" style="color:#bef264">−${P.hcpImprovement}</div><div>HCP sedan första registrerade rond</div></div><div class="grid">${[['Snittpoäng',P.avgPoints],['Bana',P.torshallaAvg],['Fairway',P.fairway+' %'],['Greenträff',P.gir+' %'],['Puttar/rond',P.putts]].map(x=>`<div class="metric">${x[0]}<b>${x[1]}</b></div>`).join('')}</div><div class="card"><small style="color:#047857;font-weight:800">ÖVERGRIPANDE ANALYS</small><div class="legend" style="margin-top:6px">Resultatsammanfattningen omfattar 19 ronder och redovisar samlade hålutfall, inte specifika hålnummer.</div><div class="historygrid"><div>Birdie<b>${HS.birdie}</b></div><div>Par<b>${HS.par}</b></div><div>Bogey<b>${HS.bogey}</b></div><div>Dubbel<b>${HS.double}</b></div><div>Sämre<b>${HS.worse}</b></div></div></div><div class="card"><b>Caddyns fokus</b><p>• Välj mer klubba. 32 % av greenmissarna är korta.</p><p>• Sikta vänster om centrum. 28 % av greenmissarna är höger.</p><p>• Prioritera fairway och träna lagputtning.</p></div>`;
 function computeClubStats(){
@@ -157,16 +157,22 @@ function renderHoleScores(){
   if(label) label.textContent = `PERSONLIGA RESULTAT PÅ HÅL ${holeNum}`;
   const data = holeScores[String(holeNum)] || [];
   const listEl = document.getElementById('hole-scores-list');
+  const badge = document.getElementById('profile-rounds-badge');
   if(!listEl) return;
   if(!data || data.length===0){
-    listEl.innerHTML = '<div>Ingen data för valt hål</div>';
+    if(badge) badge.textContent = '0 ronder';
+    listEl.innerHTML = '<div class="legend" style="margin-top:16px;text-align:center">Ingen data registrerad för det här hålet ännu.</div>';
     return;
   }
   const count = data.length;
   const avgScore = Math.round((data.reduce((a,b)=>a+b,0)/count)*10)/10;
   const avgPoints = Math.round((data.reduce((a,b)=>a+stablefordPoints(b,h.par),0)/count)*10)/10;
-  const recent = data.slice(-5).reverse().join(', ');
-  listEl.innerHTML = `<div class="grid"><div class="metric">Ronder<b>${count}</b></div><div class="metric">Snitt score<b>${avgScore}</b></div><div class="metric">Snitt poäng<b>${avgPoints}</b></div></div><div style="margin-top:8px">Senaste: ${recent}</div>`;
+  if(badge) badge.textContent = `${count} ${count===1?'rond':'ronder'}`;
+  const recent = data.slice(-5).reverse();
+  // Formindikator: lime = under par, mint = par, dämpad = över par (samma gröna palett som resten av appen)
+  const pillClass = s => s<h.par ? 'under' : (s===h.par ? 'par' : '');
+  const pills = recent.map(s=>`<div class="formpill ${pillClass(s)}">${s}</div>`).join('');
+  listEl.innerHTML = `<div class="statgrid"><div class="stattile"><b>${avgScore}</b><span>Snitt score</span></div><div class="stattile"><b>${avgPoints}</b><span>Snitt poäng</span></div></div><div class="formlabel">Senaste ${recent.length}</div><div class="formrow">${pills}</div>`;
 }
 // Hål-indexerad scorehistorik (Torshälla GK, platt format: { "hål": [scorer...] })
 fetch('assets/data/hole_scores.json'+TAG).then(r=>r.json()).then(data=>{

@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## [v1.5.1] - 2026-08-13
+- UI (Min statistik): omdesignat kortet med tydligare, mer visuell presentation inom befintlig färgpalett — Snitt score och Snitt poäng visas nu som stora "hero"-siffror i lime (#bef264, samma nyans som HCP-utvecklingen), en rondräkna-badge bredvid rubriken, och de senaste resultaten som färgkodade rundpiller (lime = under par, mint = par, dämpad = över par) istället för en kommaseparerad textrad.
+- Bump APP_VERSION to 1.5.1.
+
 ## [v1.5.0] - 2026-08-13
 - Omdesign av flikstrukturen:
   - **Caddy**: renodlad till hålinfo, avståndsväljare, personligt råd och hålskiss (samt vindjustering, som är en indata till rådet). "Personlig hålstatistik"-kortet (puttar/hål, fairway/GIR, birdie–sämre-fördelning) är borttaget härifrån.
