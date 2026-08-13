@@ -1,6 +1,6 @@
 const P={hcp:33.3,rounds:37,torshallaRounds:30,avgPoints:35.1,torshallaAvg:35.2,bestPoints:45,fairway:46,gir:5,putts:40.3,missRight:28,missShort:32,hcpImprovement:10.7};
 // use APP_VERSION injected into window by index.html; fall back to 1.3.0
-const APP_VERSION = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1.4.1';
+const APP_VERSION = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1.5.0';
 const TAG = APP_VERSION ? `?v=${APP_VERSION}` : '';
 // expose TAG as a global for inline onerror handlers that run in global scope
 window.TAG = TAG;
@@ -83,6 +83,15 @@ function aiAdvice(h, dist, allowDriver){
   const ans = `REKOMMENDATION\n${rec}\n\nSPELA SLAGET\n${play}\n\nVARFÖR\n${why}\n\nMÅLSCORE\n${goal}\n\nSÄKERHET\n${safety}`;
   return ans;
 }
+// Stableford-poäng (scratch) utifrån score relativt hålets par: eagle+=4, birdie=3, par=2, bogey=1, dubbel+=0
+function stablefordPoints(score, par){
+  const diff = score - par;
+  if(diff<=-2) return 4;
+  if(diff===-1) return 3;
+  if(diff===0) return 2;
+  if(diff===1) return 1;
+  return 0;
+}
 function sketch(h){const tag = TAG; const src = `assets/holes/hole${h.hole}.jpg${tag}`;return `<div class="card sketch"><b>Hålskiss · hål ${h.hole}</b><img src="${src}" alt="Hål ${h.hole}" style="width:100%;height:auto;border-radius:12px" onerror="this.src='assets/banguide.jpg'+TAG"/><div class="legend">Officiell hålskiss från Torshälla GK. Klicka nedan för detaljerad banguide.</div><a class="official" href="https://torshallagk.se/spela/banan/" target="_blank" rel="noopener noreferrer">Öppna Torshälla GK:s officiella banguide</a></div>`}
 function render(){
   let h=H[i];
@@ -95,7 +104,7 @@ function render(){
   // Advice moved above sketch
   const adviceCard = `<div class="card advice"><small>PERSONLIGT RÅD</small><h3>${h.par===3?club(eff, allowDriver)[0]:'Spela för position'}</h3><div style="white-space:pre-wrap">${aiAdvice(h, dist, allowDriver)}</div><p class="note">Klubbdistanserna är rangevärden från matta och rangebollar. Driver rekommenderas endast för tee-slag på par 4/5.</p></div>`;
   const distanceCard = `<div class="card row"><b>Avstånd (${isDefaultDist?'Tee':'eget'})</b><div class="stepper"><button onclick="adjustDistance(-1)">−</button> <input id="dist-input" type="number" inputmode="numeric" value="${dist}" style="width:64px;text-align:center;border:1px solid #ddd;border-radius:8px;padding:6px;font-weight:800" onchange="setDistanceValue(this.value)"/> <button onclick="adjustDistance(1)">+</button></div>${isDefaultDist?'':`<button class="button" onclick="resetDistance()">Tee (${h.distance} m)</button>`}</div>`;
-  document.querySelector('#caddy').innerHTML=`<div class="card hero"><div class="badges"><span class="badge">Par ${h.par}</span><span class="badge">Index ${h.index}</span></div><small>HÅL</small><h2>${h.hole}</h2><div>Tee 2</div><div class="distance">${dist} m</div></div>${distanceCard}${adviceCard}${sketch(h)}<div class="card"><small style="color:#047857;font-weight:800">PERSONLIG HÅLSTATISTIK</small><h3 style="margin:5px 0">Underlag för hål ${h.hole}</h3><div class="legend">Resultatsammanfattningen omfattar 19 ronder och redovisar samlade hålutfall, inte specifika hålnummer.</div><div class="grid" style="margin-top:10px"><div class="metric">Puttar/hål<b>${h.par===3?HS.putt3:HS.putt45}</b></div><div class="metric">Fairway<b>${h.par===3?'Ej tillämpligt':'46 %'}</b></div><div class="metric">GIR<b>5 %</b></div></div><div class="historygrid"><div>Birdie<b>${HS.birdie}</b></div><div>Par<b>${HS.par}</b></div><div>Bogey<b>${HS.bogey}</b></div><div>Dubbel<b>${HS.double}</b></div><div>Sämre<b>${HS.worse}</b></div></div></div><div class="card row"><b>Vindjustering</b><div class="stepper"><button onclick="wind--;render()">−</button> <b>${wind>0?'+':''}${wind} m/s</b> <button onclick="wind++;render()">+</button></div></div><div class="nav"><button class="button" onclick="move(-1)" ${i===0?'disabled':''}>‹ Föregående</button><button class="button primary" onclick="move(1)" ${i===17?'disabled':''}>Nästa ›</button></div>`;
+  document.querySelector('#caddy').innerHTML=`<div class="card hero"><div class="badges"><span class="badge">Par ${h.par}</span><span class="badge">Index ${h.index}</span></div><small>HÅL</small><h2>${h.hole}</h2><div>Tee 2</div><div class="distance">${dist} m</div></div>${distanceCard}${adviceCard}${sketch(h)}<div class="card row"><b>Vindjustering</b><div class="stepper"><button onclick="wind--;render()">−</button> <b>${wind>0?'+':''}${wind} m/s</b> <button onclick="wind++;render()">+</button></div></div><div class="nav"><button class="button" onclick="move(-1)" ${i===0?'disabled':''}>‹ Föregående</button><button class="button primary" onclick="move(1)" ${i===17?'disabled':''}>Nästa ›</button></div>`;
   // Update hole-specific stats in profile when rendering a different hole
   try{ renderHoleScores(); }catch(e){/* ignore if profile not mounted yet */}
 }
@@ -115,8 +124,10 @@ function resetDistance(){ distOverride = null; render(); }
 
 /* Score tab removed */
 
-// profile + data fetch
-document.querySelector('#profile').innerHTML=`<div class="card advice"><small id="profile-hole-label">PERSONLIGA RESULTAT PÅ HÅL ${H[i].hole}</small><h3>Fredrik, HCP ${P.hcp}</h3><div class="score" style="color:#bef264">−${P.hcpImprovement}</div><div>HCP sedan första registrerade rond</div><div style="margin-top:14px"><div id="hole-scores-list">Laddar…</div></div></div><div class="grid">${[['Snittpoäng',P.avgPoints],['Bana',P.torshallaAvg],['Fairway',P.fairway+' %'],['Greenträff',P.gir+' %'],['Puttar/rond',P.putts]].map(x=>`<div class="metric">${x[0]}<b>${x[1]}</b></div>`).join('')}</div><div class="card"><b>Caddyns fokus</b><p>• Välj mer klubba. 32 % av greenmissarna är korta.</p><p>• Sikta vänster om centrum. 28 % av greenmissarna är höger.</p><p>• Prioritera fairway och träna lagputtning.</p></div>`;
+// Min statistik: rent hål-fokuserad — resultat, snittpoäng och snittscore för valt hål (se renderHoleScores)
+document.querySelector('#profile').innerHTML=`<div class="card advice"><small id="profile-hole-label">PERSONLIGA RESULTAT PÅ HÅL ${H[i].hole}</small><div style="margin-top:10px"><div id="hole-scores-list">Laddar…</div></div></div>`;
+// Mitt Spel: övergripande statistik för hela spelet (handikap, utveckling, snitt, Caddy-analys)
+document.querySelector('#game').innerHTML=`<div class="card advice"><small>MITT SPEL</small><h3>Fredrik, HCP ${P.hcp}</h3><div class="score" style="color:#bef264">−${P.hcpImprovement}</div><div>HCP sedan första registrerade rond</div></div><div class="grid">${[['Snittpoäng',P.avgPoints],['Bana',P.torshallaAvg],['Fairway',P.fairway+' %'],['Greenträff',P.gir+' %'],['Puttar/rond',P.putts]].map(x=>`<div class="metric">${x[0]}<b>${x[1]}</b></div>`).join('')}</div><div class="card"><small style="color:#047857;font-weight:800">ÖVERGRIPANDE ANALYS</small><div class="legend" style="margin-top:6px">Resultatsammanfattningen omfattar 19 ronder och redovisar samlade hålutfall, inte specifika hålnummer.</div><div class="historygrid"><div>Birdie<b>${HS.birdie}</b></div><div>Par<b>${HS.par}</b></div><div>Bogey<b>${HS.bogey}</b></div><div>Dubbel<b>${HS.double}</b></div><div>Sämre<b>${HS.worse}</b></div></div></div><div class="card"><b>Caddyns fokus</b><p>• Välj mer klubba. 32 % av greenmissarna är korta.</p><p>• Sikta vänster om centrum. 28 % av greenmissarna är höger.</p><p>• Prioritera fairway och träna lagputtning.</p></div>`;
 function computeClubStats(){
   const data = holeScores;
   // determine number of full rounds (all 18 holes present at index)
@@ -140,36 +151,40 @@ function updateHeaderStats(){
   }catch(e){console.warn('updateHeaderStats failed',e)}
 }
 function renderHoleScores(){
-  const holeNum = H[i].hole;
+  const h = H[i];
+  const holeNum = h.hole;
   const label = document.getElementById('profile-hole-label');
   if(label) label.textContent = `PERSONLIGA RESULTAT PÅ HÅL ${holeNum}`;
   const data = holeScores[String(holeNum)] || [];
+  const listEl = document.getElementById('hole-scores-list');
+  if(!listEl) return;
   if(!data || data.length===0){
-    document.getElementById('hole-scores-list').innerHTML = '<div>Ingen data för valt hål</div>';
+    listEl.innerHTML = '<div>Ingen data för valt hål</div>';
     return;
   }
   const count = data.length;
-  const avg = Math.round((data.reduce((a,b)=>a+b,0)/count)*10)/10;
+  const avgScore = Math.round((data.reduce((a,b)=>a+b,0)/count)*10)/10;
+  const avgPoints = Math.round((data.reduce((a,b)=>a+stablefordPoints(b,h.par),0)/count)*10)/10;
   const recent = data.slice(-5).reverse().join(', ');
-  document.getElementById('hole-scores-list').innerHTML = `<div class="grid"><div class="metric">Hål ${holeNum}<b></b></div><div class="metric">Ronder<b>${count}</b></div><div class="metric">Snitt<b>${avg}</b></div></div><div style="margin-top:8px">Senaste: ${recent}</div>`;
+  listEl.innerHTML = `<div class="grid"><div class="metric">Ronder<b>${count}</b></div><div class="metric">Snitt score<b>${avgScore}</b></div><div class="metric">Snitt poäng<b>${avgPoints}</b></div></div><div style="margin-top:8px">Senaste: ${recent}</div>`;
 }
 // Hål-indexerad scorehistorik (Torshälla GK, platt format: { "hål": [scorer...] })
 fetch('assets/data/hole_scores.json'+TAG).then(r=>r.json()).then(data=>{
   holeScores = data || {};
   updateHeaderStats(); renderHoleScores();
-  // setup hole dropdown drilldown
+  // setup hole dropdown drilldown — ankrad till header-wrappern bredvid bannamnet
   const holeBtn = document.getElementById('hole-select-btn');
-  const tabs = document.querySelector('.tabs');
-  const dd = document.createElement('div'); dd.id='hole-dropdown'; dd.className='card hide'; dd.style.position='absolute'; dd.style.right='14px'; dd.style.top='72px'; dd.style.width='200px'; dd.style.padding='8px';
+  const holeSelectWrap = document.getElementById('hole-select-wrap');
+  const dd = document.createElement('div'); dd.id='hole-dropdown'; dd.className='card hide'; dd.style.position='absolute'; dd.style.right='0'; dd.style.top='calc(100% + 10px)'; dd.style.width='200px'; dd.style.padding='8px'; dd.style.zIndex='5'; dd.style.maxHeight='60vh'; dd.style.overflowY='auto';
   dd.innerHTML = H.map(h=>`<div style="margin:4px 0"><button class="holebtn" style="width:100%" onclick="go(${h.hole-1});document.getElementById('hole-dropdown').classList.add('hide');">Hål ${h.hole}</button></div>`).join('');
-  tabs.appendChild(dd);
+  holeSelectWrap.appendChild(dd);
   holeBtn.onclick = e=>{ e.stopPropagation(); dd.classList.toggle('hide'); };
   document.addEventListener('click',()=>{ if(!dd.classList.contains('hide')) dd.classList.add('hide'); });
 }).catch(e=>{document.getElementById('hole-scores-list').textContent='Ingen data'});
 
 function move(d){i=Math.max(0,Math.min(17,i+d));localStorage.gcHole=i;distOverride=null;render()}function go(n){i=n;localStorage.gcHole=i;distOverride=null;render()}function setScore(n){scores[H[i].hole]=Math.max(1,n);localStorage.gcScores=JSON.stringify(scores);render()}
 
-try{document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');['caddy','profile'].forEach(x=>document.querySelector('#'+x).classList.toggle('hide',x!==b.dataset.tab))});render();}catch(e){console.error('Render failed:',e);const c=document.getElementById('caddy');if(c) c.innerHTML='<div class="card"><b>Fel i UI</b><p>Se konsolen för fel (F12) eller kontakta utvecklaren.</p></div>';}
+try{document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');['caddy','profile','game'].forEach(x=>document.querySelector('#'+x).classList.toggle('hide',x!==b.dataset.tab))});render();}catch(e){console.error('Render failed:',e);const c=document.getElementById('caddy');if(c) c.innerHTML='<div class="card"><b>Fel i UI</b><p>Se konsolen för fel (F12) eller kontakta utvecklaren.</p></div>';}
 
 // PWA / service worker handling
 let deferredPrompt;

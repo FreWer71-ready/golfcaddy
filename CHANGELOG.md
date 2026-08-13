@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## [v1.5.0] - 2026-08-13
+- Omdesign av flikstrukturen:
+  - **Caddy**: renodlad till hålinfo, avståndsväljare, personligt råd och hålskiss (samt vindjustering, som är en indata till rådet). "Personlig hålstatistik"-kortet (puttar/hål, fairway/GIR, birdie–sämre-fördelning) är borttaget härifrån.
+  - **Min statistik**: renodlad till hål-fokuserad statistik — "Personliga resultat på hål #" visar nu Ronder, Snitt score och (nytt) Snitt poäng (Stableford, scratch: eagle+=4, birdie=3, par=2, bogey=1, dubbel+=0) samt senaste resultaten, allt i ett enda kort.
+  - **Ny flik "Mitt Spel"**: handikap, HCP-utveckling, snittpoäng/bana, fairway %, greenträff %, puttar/rond samt en övergripande analys (birdie–sämre-fördelningen som tidigare låg under Caddy) och Caddyns fokus.
+- Håldropdownen ("Välj hål") är flyttad från flik-raden till headern, direkt efter bannamnet "Torshälla GK".
+- Bump APP_VERSION to 1.5.0.
+
 ## [v1.4.1] - 2026-08-13
 - UI (Min statistik): slog ihop "Personlig nuläsgesbild"-kortet och det separata "Hålscorer"-kortet till ett kort. Rubriken byter namn till "PERSONLIGA RESULTAT PÅ HÅL {hål}" och uppdateras dynamiskt när man byter hål (via `renderHoleScores()`); hålscore-infot (Ronder/Snitt/Senaste) visas nu direkt i samma kort istället för i ett eget kort under.
 - Bump APP_VERSION to 1.4.1.
