@@ -1,6 +1,6 @@
 const P={hcp:33.3,rounds:37,torshallaRounds:30,avgPoints:35.1,torshallaAvg:35.2,bestPoints:45,fairway:46,gir:5,putts:40.3,missRight:28,missShort:32,hcpImprovement:10.7};
 // use APP_VERSION injected into window by index.html; fall back to 1.3.0
-const APP_VERSION = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1.3.1';
+const APP_VERSION = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1.3.3';
 const TAG = APP_VERSION ? `?v=${APP_VERSION}` : '';
 // expose TAG as a global for inline onerror handlers that run in global scope
 window.TAG = TAG;
@@ -15,31 +15,37 @@ let clubDataGlobal = {}; let clubDisplayNames = {}; const selectedClub = 'torsha
 // fetch club-indexed data early so Caddy advice can use history
 fetch('assets/data/hole_scores_by_club.json?v=1.2.6').then(r=>r.json()).then(d=>{ clubDataGlobal = d || {}; }).catch(()=>{ clubDataGlobal = {}; });
 try { scores = JSON.parse(localStorage.gcScores || '{}'); } catch(e) { console.warn('Failed to parse gcScores, removing invalid value:', e); localStorage.removeItem('gcScores'); scores = {}; }
-function club(d){if(d>168)return C[0];return C.reduce((a,b)=>Math.abs(b[1]-d)<Math.abs(a[1]-d)?b:a)}
+// Väljer klubban med kortast snittlängd (rangestatistik i C) som ändå når d.
+// Driver får bara rekommenderas för slag från Tee — fromTee=false utesluter den ur bagen.
+// Om ingen klubb når på snittlängd faller vi tillbaka på längsta tillgängliga klubb i bagen som transportslag.
+// Används av både rubriken (par 3) och aiAdvice, så de aldrig kan visa olika klubbor för samma längd.
+function club(d, fromTee){
+  const driverName = C[0][0];
+  const bag = fromTee===false ? C.filter(c=>c[0]!==driverName) : C;
+  const reachable = bag.filter(c=>c[1]>=d).sort((a,b)=>a[1]-b[1]);
+  return reachable.length ? reachable[0] : bag.reduce((a,b)=>b[1]>a[1]?b:a);
+}
 
 // AI-like heuristic advice generator following provided rules (deterministic, client-side)
-function aiAdvice(h, dist){
+// fromTee: true om avståndet är hålets ordinarie Tee-avstånd, false om det är ett eget/inskrivet avstånd
+// (dvs. inte ett tee-slag) — Driver ska då aldrig rekommenderas.
+function aiAdvice(h, dist, fromTee){
+  const isFromTee = fromTee !== false;
   // Required effective distance uses carry-first and accounts for wind as priority
   const baseDist = dist!=null ? dist : h.distance;
   const req = Math.max(1, Math.round(baseDist + wind*2));
-  // find clubs that can reach by carry
-  const reachable = C.map((c,idx)=>({idx, name:c[0], carry:c[1]})).filter(c=>c.carry>=req);
+  // find the shortest club (by average carry) that reaches; club() also drives the h3-rubriken ovan
+  const driverName = C[0][0];
+  const bag = isFromTee ? C : C.filter(c=>c[0]!==driverName);
+  const reachable = bag.filter(c=>c[1]>=req);
   let choice;
   if(reachable.length===0){
-    // no club reaches: suggest safe transport with longest available carry
-    choice = {name: C[0][0], carry: C[0][1], toGreen:false};
+    // no club reaches: suggest safe transport with the longest available club in the bag
+    const longest = bag.reduce((a,b)=>b[1]>a[1]?b:a);
+    choice = {name: longest[0], carry: longest[1], toGreen:false};
   } else {
-    // choose the smallest carry that still reaches (but prefer longer when between two)
-    reachable.sort((a,b)=>a.carry-b.carry);
-    let pick = reachable[0];
-    // if there is a previous shorter club, and we're between two, prefer the longer club
-    const prevIdx = C.findIndex(x=>x[1]===pick.carry)+1; // index of pick in C (approx)
-    // simpler: if second candidate exists, pick the longer candidate when ambiguous
-    if(reachable.length>1){
-      // pick the first (shortest reaching) but prefer the second (longer) in most cases per rules
-      pick = reachable[ Math.min(1, reachable.length-1) ];
-    }
-    choice = {name: pick.name, carry: pick.carry, toGreen:true};
+    const pick = club(req, isFromTee);
+    choice = {name: pick[0], carry: pick[1], toGreen:true};
   }
 
   // History for hole (Torshälla GK)
@@ -84,7 +90,7 @@ function render(){
   const isDefaultDist = distOverride==null;
   let eff=Math.max(1,dist+wind*2),s=scores[h.hole]??h.par;
   // Advice moved above sketch
-  const adviceCard = `<div class="card advice"><small>PERSONLIGT RÅD</small><h3>${h.par===3?club(eff)[0]:'Spela för position'}</h3><div style="white-space:pre-wrap">${aiAdvice(h, dist)}</div><p class="note">Klubbdistanserna är rangevärden från matta och rangebollar.</p></div>`;
+  const adviceCard = `<div class="card advice"><small>PERSONLIGT RÅD</small><h3>${h.par===3?club(eff, isDefaultDist)[0]:'Spela för position'}</h3><div style="white-space:pre-wrap">${aiAdvice(h, dist, isDefaultDist)}</div><p class="note">Klubbdistanserna är rangevärden från matta och rangebollar. Driver rekommenderas endast från tee.</p></div>`;
   const distanceCard = `<div class="card row"><b>Avstånd (${isDefaultDist?'Tee':'eget'})</b><div class="stepper"><button onclick="adjustDistance(-1)">−</button> <input id="dist-input" type="number" inputmode="numeric" value="${dist}" style="width:64px;text-align:center;border:1px solid #ddd;border-radius:8px;padding:6px;font-weight:800" onchange="setDistanceValue(this.value)"/> <button onclick="adjustDistance(1)">+</button></div>${isDefaultDist?'':`<button class="button" onclick="resetDistance()">Tee (${h.distance} m)</button>`}</div>`;
   document.querySelector('#caddy').innerHTML=`<div class="card hero"><div class="badges"><span class="badge">Par ${h.par}</span><span class="badge">Index ${h.index}</span></div><small>HÅL</small><h2>${h.hole}</h2><div>Tee 2</div><div class="distance">${dist} m</div></div>${distanceCard}${adviceCard}${sketch(h)}<div class="card"><small style="color:#047857;font-weight:800">PERSONLIG HÅLSTATISTIK</small><h3 style="margin:5px 0">Underlag för hål ${h.hole}</h3><div class="legend">Resultatsammanfattningen omfattar 19 ronder och redovisar samlade hålutfall, inte specifika hålnummer.</div><div class="grid" style="margin-top:10px"><div class="metric">Puttar/hål<b>${h.par===3?HS.putt3:HS.putt45}</b></div><div class="metric">Fairway<b>${h.par===3?'Ej tillämpligt':'46 %'}</b></div><div class="metric">GIR<b>5 %</b></div></div><div class="historygrid"><div>Birdie<b>${HS.birdie}</b></div><div>Par<b>${HS.par}</b></div><div>Bogey<b>${HS.bogey}</b></div><div>Dubbel<b>${HS.double}</b></div><div>Sämre<b>${HS.worse}</b></div></div></div><div class="card row"><b>Vindjustering</b><div class="stepper"><button onclick="wind--;render()">−</button> <b>${wind>0?'+':''}${wind} m/s</b> <button onclick="wind++;render()">+</button></div></div><div class="nav"><button class="button" onclick="move(-1)" ${i===0?'disabled':''}>‹ Föregående</button><button class="button primary" onclick="move(1)" ${i===17?'disabled':''}>Nästa ›</button></div>`;
   // Update hole-specific stats in profile when rendering a different hole
