@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## [v1.6.0] - 2026-08-13
+- **Smart Caddy Engine**: helt ombyggd klubbrekommendation. Ny separat, testbar, deterministisk modul `smartCaddyEngine.js` (window.SmartCaddyEngine, laddas lokalt, inga externa API:er/AI-anrop) som svarar på "hur bör jag spela hålet för att minska risken för dubbelbogey eller sämre?" i stället för bara "vilken klubba når avståndet?".
+  - `normalizeHoleHistory` bygger en HoleHistory-modell ur rå hålscorehistorik (assets/data/hole_scores.json). Saknade värden blir `null`, aldrig påhittade nollor.
+  - `computeRisk` — personligt riskindex 0–100 per hål (snitt-till-par, andel dubbelbogey+, sämsta resultat, trend), viktat med konstanter i `RISK_WEIGHTS`. Utan personlig historik ges en försiktig baseline (medelrisk) i stället för falsk säkerhet. UI visar bara bucket-etiketten ("Hög risk"), aldrig råsiffran.
+  - `computeConfidence` — separat mått på hur starkt *dataunderlaget* är (0–2 resultat = lågt, 3–7 = medel, 8+ = högt), aldrig sannolikheten att slaget lyckas. Ett råd kan ha hög risk och lågt dataunderlag samtidigt, och det visas tydligt.
+  - `computeScoreGoal` — realistiskt coachmål (t.ex. "Bogey eller bättre") och strategiläge (protect_score/normal/attack). Attack-läge triggas bara vid stark personlig historik (aldrig standard).
+  - `chooseClubAndTarget` — klubbval baserat på *säker* carry (estimerad konservativt från rangevärdena, `safeCarryRatio`), justerat för lie (tee/fairway/rough/bunker/recovery) och vind. Tee-slag mot fairway (par 4/5) hanteras separat från slag mot ett definierat mål (green/layup): på ett personligt riskhål väljs precision (längsta järnet) framför Driver även från tee. Räcker ingen klubba säkert väljs ett kontrollerat lägg-upp-slag i stället för automatiskt den längsta klubban. Driver rekommenderas fortsatt aldrig mot en green.
+  - Global missriktning (48 % miss höger) och puttstatistik (27 % treputtar) vävs in som transparent märkta skäl — aldrig som hålspecifik statistik, och fairwayråd visas inte på par 3.
+  - Varje råd anger `dataSources` (hålhistorik/fairwaymönster/puttmönster/klubblängder/banadata/säkerhetsregler) så det alltid är tydligt vad rådet bygger på.
+- Ny lokal profil `assets/data/player_profile.json` (startdata, skrivskyddad från klienten) med importerade globalStats (19 ronder, snittscore 120,7, bästa 104, fairway/putt-fördelning, resultatfördelning). Ersätter de gamla hårdkodade P/HS-konstanterna i app.js.
+- "Mitt Spel" uppdaterad att visa de nya, korrekta siffrorna. Nya andelar (t.ex. andel dubbelbogey+) räknas bara ut från en konsekvent nämnare (summan av resultatfördelningens egna kategorier) — blandas aldrig ihop med fairway-/puttprocenten, som har en annan nämnare.
+- Ny lägesväljare (Fairway/Ruff/Bunker/Recovery) i Caddy-vyn, synlig när ett eget avstånd (inte Tee) är valt — ger motorn den `lie` den behöver för att justera säker carry konservativt.
+- "Personligt råd"-kortet är omdesignat: rubrik, huvudråd, risk-/dataunderlags-pills, ett tydligt målkort, en "VARFÖR"-lista och en källrad — allt inom appens befintliga gröna/lime-palett.
+- Bump APP_VERSION to 1.6.0.
+
 ## [v1.5.1] - 2026-08-13
 - UI (Min statistik): omdesignat kortet med tydligare, mer visuell presentation inom befintlig färgpalett — Snitt score och Snitt poäng visas nu som stora "hero"-siffror i lime (#bef264, samma nyans som HCP-utvecklingen), en rondräkna-badge bredvid rubriken, och de senaste resultaten som färgkodade rundpiller (lime = under par, mint = par, dämpad = över par) istället för en kommaseparerad textrad.
 - Bump APP_VERSION to 1.5.1.
