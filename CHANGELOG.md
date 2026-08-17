@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## [v1.7.0] - 2026-08-13
+- **Ny "Inställn."-flik** (fjärde fliken): användaren kan nu själv redigera all sin data direkt i appen — inga JSON-filer att pilla i.
+  - **Spelarprofil**: namn och aktuellt handikap. Skriver över värdena från `assets/data/player_profile.json`.
+  - **Min klubbag**: redigerbar lista med namn, snittlängd (m) och maxlängd (m). Lägg till/ta bort klubbor eller återställ till standardvärdena. Motorn använder de effektiva klubbvärdena direkt vid nästa rendering.
+  - **Mina ronder**: registrera en ny rond (datum + 18 hål-scorer i en kompakt 6×3-grid). Sparade ronder slås automatiskt in i hål-statistiken via en overlay ovanpå startdatan från `hole_scores.json`, så både "Min statistik", header ("Ronder"/"Bäst") och SmartCaddyEngine-motorn ser den nya datan omedelbart.
+  - **Dina data**: exportera hela din lokala data till en JSON-fil, importera tillbaka (t.ex. på en annan enhet), eller rensa all lokal data. Bra säkerhetsnät eftersom localStorage kan gå förlorat vid webbläsarrensning.
+- **Datalagerarkitektur**: seed vs overlay-mönstret från v1.6.0-specen är nu fullt implementerat. `assets/data/*.json` är skrivskyddad seed; `localStorage.gcProfile` / `gcClubs` / `gcRounds` är användarens data. Nya `getEffectiveClubs()` / `getEffectivePlayerProfile()` / `getEffectiveHoleScores()` returnerar den sammanslagna vyn där användarens data alltid vinner över seed. Alla vyer och motorn läser genom dessa funktioner — inga hårdkodade `C`-, `holeScores`- eller `playerProfile`-referenser kvar.
+- Flikraden ändrad från 3 till 4 kolumner: "Caddy · Statistik · Mitt Spel · Inställn.".
+- Bump APP_VERSION to 1.7.0.
+
 ## [v1.6.0] - 2026-08-13
 - **Smart Caddy Engine**: helt ombyggd klubbrekommendation. Ny separat, testbar, deterministisk modul `smartCaddyEngine.js` (window.SmartCaddyEngine, laddas lokalt, inga externa API:er/AI-anrop) som svarar på "hur bör jag spela hålet för att minska risken för dubbelbogey eller sämre?" i stället för bara "vilken klubba når avståndet?".
   - `normalizeHoleHistory` bygger en HoleHistory-modell ur rå hålscorehistorik (assets/data/hole_scores.json). Saknade värden blir `null`, aldrig påhittade nollor.
