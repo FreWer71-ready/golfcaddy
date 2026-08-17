@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## [v1.9.0] - 2026-08-17
+- **Fix: Snitt poäng räknar nu netto Stableford (som svensk golfkonvention kräver), inte brutto.**
+  Den gamla `stablefordPoints()` räknade `score − par` direkt utan HCP-hänsyn, vilket för en 33-spelare gav ~1p per hål när det korrekta är ~2–3p per hål (netto).
+- Ny beräkningsmodell enligt officiella svenska golfregler (SGF/WHS):
+  1. **Course Handicap** = `HCP × (Slope / 113) + (CR − Par)`, avrundat till närmaste heltal.
+  2. **Slag per hål** fördelas utifrån hålets stroke-index: spelhcp ≤ 18 ger 1 slag på hålen med SI 1..spelhcp; spelhcp 19–36 ger 1 slag överallt + ett extra på SI 1..(spelhcp−18); spelhcp 37+ ger 2 slag överallt + ett extra på SI 1..(spelhcp−36). Plus-handicap dras av från lägsta SI.
+  3. **Netto Stableford**: `bruttoscore − tilldelade slag − par` matchas mot standardtabellen (netto eagle+ = 4p, birdie = 3p, par = 2p, bogey = 1p, dubbel+ = 0p).
+- **Torshälla GK CR/Slope-data** hämtat och verifierat mot officiella slope-tabellerna (2023-05-26) från https://torshallagk.se/spela/slope/ (PDF Slope-Tables_Torshalla-H och -W). Lagd som `TEES`-konstant i app.js:
+  - Vit (herr): CR 73.3, Slope 127 — Gul (herr): CR 70.8, Slope 127 — Blå: 69.5/122 (H), 75.4/134 (D) — Röd: 65.1/113 (H), 70.4/120 (D) — Orange: 63.4/103 (H), 67.9/114 (D).
+  - Verifierat mot tabellen: HCP 33.3 herr Gul → formeln ger 36.226 → spelhcp 36, exakt vad PDF:en visar (rad "HCP 32.7–33.5 → Spelhcp 36").
+- **Nya profilfält** i Inställn. → Spelarprofil: **Klass** (Herr/Dam) och **Tee** (filtrerad efter klass — Vit finns bara för herr). Live-uträknat spelhandikap visas under fälten som en snabb sanitetscheck.
+- "Snitt poäng"-etiketten i Statistik visar nu **"Snitt poäng (netto, +N slag)"** när HCP och tee är angivna, annars **"Snitt poäng (brutto)"** med en förklaringstext.
+- Fredriks exempeldata (sample_data.json) läser nu även in tee=gul och gender=men så netto-räkningen slår in direkt vid demo.
+- Bump APP_VERSION to 1.9.0.
+
 ## [v1.8.0] - 2026-08-17
 - Appen är nu en riktig **multi-användarapp för Torshälla-spelare** i stället för en personlig app för en enda spelare.
   - `assets/data/player_profile.json` och `hole_scores.json` är rensade till tomma seedvärden. Nya användare öppnar appen och ser sin egen tomma statistik — inte Fredriks 19 ronder blandade in i sin.

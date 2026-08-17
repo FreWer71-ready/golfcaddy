@@ -1,11 +1,22 @@
-// use APP_VERSION injected into window by index.html; fall back to 1.8.0
-const APP_VERSION = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1.8.0';
+// use APP_VERSION injected into window by index.html; fall back to 1.9.0
+const APP_VERSION = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1.9.0';
 const TAG = APP_VERSION ? `?v=${APP_VERSION}` : '';
 // expose TAG as a global for inline onerror handlers that run in global scope
 window.TAG = TAG;
 
 // Hål-data (par, hcp-index, avstånd gul tee i meter) verifierad mot https://torshallagk.se/spela/banan/ 2026-08-13
 const H=[[4,10,347],[4,6,356],[4,2,378],[3,18,113],[5,4,491],[5,12,480],[4,8,331],[3,16,140],[4,14,304],[4,9,335],[5,13,497],[3,11,166],[4,5,326],[4,3,347],[3,17,114],[4,1,331],[4,7,363],[5,15,435]].map((x,i)=>({hole:i+1,par:x[0],index:x[1],distance:x[2]}));
+const COURSE_PAR = H.reduce((a,h)=>a+h.par, 0); // Torshälla GK par 72
+// Torshälla GK tee-data (CR/Slope) från officiella slope-tabeller 2023-05-26
+// (https://torshallagk.se/wp-content/uploads/2025/11/Slope-Tables_Torshalla-{H,W}.pdf).
+// Används för att räkna spelhandikap: Course Handicap = HCP × (Slope / 113) + (CR − Par).
+const TEES = {
+  vit:    { name:'Vit',    genderCategories:['men'],          courseRating: 73.3, slopeRating: 127 },
+  gul:    { name:'Gul',    genderCategories:['men'],          courseRating: 70.8, slopeRating: 127 },
+  bla:    { name:'Blå',    genderCategories:['men','women'],  courseRatingMen: 69.5, slopeRatingMen: 122, courseRatingWomen: 75.4, slopeRatingWomen: 134 },
+  rod:    { name:'Röd',    genderCategories:['men','women'],  courseRatingMen: 65.1, slopeRatingMen: 113, courseRatingWomen: 70.4, slopeRatingWomen: 120 },
+  orange: { name:'Orange', genderCategories:['men','women'],  courseRatingMen: 63.4, slopeRatingMen: 103, courseRatingWomen: 67.9, slopeRatingWomen: 114 }
+};
 // Default-klubbdata (rangevärden från matta/rangebollar): [namn, snittlängd, maxlängd] i meter
 // Detta är seed. Användarens egna klubbor lagras i localStorage.gcClubs och överskrider seed.
 const C_DEFAULT=[['Driver 909 D-Comp',145,181],['Järn 5 King F9',115,144],['Järn 8 King F9',113,124],['Järn 7 King F9',109,126],['Järn 9 King F9',101,108],['Pitching Wedge',90,93],['Wedge 60°',72,84]];
@@ -68,15 +79,71 @@ let holeScoresSeed = {};
 let playerProfileSeed = null;
 try { scores = JSON.parse(localStorage.gcScores || '{}'); } catch(e) { console.warn('Failed to parse gcScores, removing invalid value:', e); localStorage.removeItem('gcScores'); scores = {}; }
 
-// Stableford-poäng (scratch) utifrån score relativt hålets par: eagle+=4, birdie=3, par=2, bogey=1, dubbel+=0
-// (Används av "Min statistik", oberoende av SmartCaddyEngine.)
-function stablefordPoints(score, par){
-  const diff = score - par;
+// ==========================================================================
+// Stableford-poäng — se https://golf.se för officiella regler.
+//
+// Grundtabell (nettoscore relativt par):
+//   ≤ −2 (netto eagle+) = 4p, −1 (birdie) = 3p, 0 (par) = 2p, +1 (bogey) = 1p, ≥ +2 = 0p
+//
+// Netto beräknas som: bruttoscore − tilldelade slag på hålet
+//   Slagen fördelas per hål utifrån hålets stroke-index (SI, 1–18):
+//     spelhcp ≤ 18: ett slag på hålen med SI 1..spelhcp
+//     spelhcp 19..36: 1 slag på alla hål, plus ett extra på SI 1..(spelhcp−18)
+//     spelhcp 37..54: 2 slag på alla hål, plus ett extra på SI 1..(spelhcp−36)
+//   (Plus-handikap: dra bort slag från de svåraste hålen)
+//
+// Spelhandikap: Course Handicap = HCP × (Slope / 113) + (CR − Par), avrundat till närmaste heltal.
+// ==========================================================================
+function computeCourseHandicap(exactHcp, tee, gender){
+  if(exactHcp==null || !tee) return null;
+  const gm = gender==='women' ? 'Women' : 'Men';
+  const cr = tee['courseRating'+gm] != null ? tee['courseRating'+gm] : tee.courseRating;
+  const slope = tee['slopeRating'+gm] != null ? tee['slopeRating'+gm] : tee.slopeRating;
+  if(cr==null || slope==null) return null;
+  return Math.round(exactHcp * (slope/113) + (cr - COURSE_PAR));
+}
+// Delar ut spelhcp-slag på 18 hål utifrån SI. Returnerar {holeNumber: extraSlag}.
+function distributeStrokes(courseHandicap, holes){
+  const result = {}; holes.forEach(h=>{ result[h.hole] = 0; });
+  if(courseHandicap==null) return result;
+  if(courseHandicap<0){
+    // Plus-handikap: dra av från lägsta SI (svåraste hålen) uppåt
+    const toRemove = -courseHandicap;
+    holes.slice().sort((a,b)=>a.index-b.index).slice(0,Math.min(18,toRemove)).forEach(h=>{ result[h.hole] -= 1; });
+    return result;
+  }
+  const base = Math.floor(courseHandicap/18);
+  const extra = courseHandicap - base*18;
+  holes.forEach(h=>{ result[h.hole] += base; });
+  holes.slice().sort((a,b)=>a.index-b.index).slice(0,extra).forEach(h=>{ result[h.hole] += 1; });
+  return result;
+}
+function pointsFromNettoDiff(diff){
   if(diff<=-2) return 4;
   if(diff===-1) return 3;
   if(diff===0) return 2;
   if(diff===1) return 1;
   return 0;
+}
+// Brutto Stableford (utan HCP-hänsyn) — används som fallback när spelhandikap saknas
+// och som "brutto"-jämförvärde när det är relevant.
+function stablefordPoints(score, par){ return pointsFromNettoDiff(score - par); }
+// Netto Stableford — bruttoscore minskat med tilldelade slag på hålet.
+function nettoStablefordPoints(score, par, strokesOnHole){
+  return pointsFromNettoDiff(score - (strokesOnHole||0) - par);
+}
+// Bekvämlighet: räkna netto-poäng givet spelarens hela profil, aktuell hål och bruttoscore.
+// Faller tillbaka på brutto Stableford om HCP eller tee saknas.
+function computeHolePoints(score, hole, profile, teeId, gender){
+  if(score==null || !isFinite(score) || score<=0) return null;
+  const exactHcp = profile && profile.handicap && profile.handicap.current;
+  const tee = teeId && TEES[teeId];
+  if(exactHcp==null || !tee){
+    return { mode:'brutto', points: stablefordPoints(score, hole.par), courseHandicap: null };
+  }
+  const ch = computeCourseHandicap(exactHcp, tee, gender);
+  const strokes = distributeStrokes(ch, H)[hole.hole] || 0;
+  return { mode:'netto', points: nettoStablefordPoints(score, hole.par, strokes), courseHandicap: ch, strokesOnHole: strokes };
 }
 
 const LIE_LABELS = {fairway:'Fairway', rough:'Ruff', bunker:'Bunker', recovery:'Recovery'};
@@ -253,12 +320,25 @@ function renderSettingsTab(){
   const userProfile = loadUserProfile() || {};
   const name = userProfile.name || (profile && profile.playerName) || '';
   const hcp = userProfile.hcp!=null ? userProfile.hcp : (profile && profile.handicap && profile.handicap.current!=null ? profile.handicap.current : '');
+  const gender = userProfile.gender || 'men';
+  const teeId = userProfile.teeId || 'gul';
   const clubs = getEffectiveClubs();
   const rounds = loadUserRounds();
+
+  // Live-räknat spelhandikap för användarens val — hjälper spelaren se att netto Stableford stämmer
+  const chNow = (hcp!=='' && hcp!=null) ? computeCourseHandicap(parseFloat(String(hcp).replace(',','.')), TEES[teeId], gender) : null;
+  const teeOpts = Object.keys(TEES).filter(id => TEES[id].genderCategories.includes(gender))
+    .map(id => `<option value="${id}"${id===teeId?' selected':''}>${TEES[id].name}</option>`).join('');
 
   const profileCard = `<div class="card"><small style="color:#047857;font-weight:800">SPELARPROFIL</small>
     <div class="settings-field" style="margin-top:10px"><label>Namn</label><input id="settings-name" type="text" value="${escapeHtml(name)}" placeholder="Ditt namn"/></div>
     <div class="settings-field"><label>Aktuellt handikap</label><input id="settings-hcp" type="number" step="0.1" value="${escapeHtml(hcp)}" placeholder="t.ex. 33.3"/></div>
+    <div class="settings-field"><label>Klass</label><select id="settings-gender" onchange="onGenderChange()">
+      <option value="men"${gender==='men'?' selected':''}>Herr</option>
+      <option value="women"${gender==='women'?' selected':''}>Dam</option>
+    </select></div>
+    <div class="settings-field"><label>Tee</label><select id="settings-tee">${teeOpts}</select></div>
+    ${chNow!=null ? `<div class="legend" style="margin-top:4px">Ditt spelhandikap på ${TEES[teeId].name} tee (${gender==='women'?'dam':'herr'}) blir <b>${chNow}</b> med formeln HCP × (Slope / 113) + (CR − Par). Används för att räkna netto Stableford-poäng i statistiken.</div>` : ''}
     <div class="btnrow"><button class="button primary" onclick="saveProfileFromForm()">Spara profil</button></div>
   </div>`;
 
@@ -313,10 +393,29 @@ function saveProfileFromForm(){
   const name = document.getElementById('settings-name').value.trim();
   const hcpRaw = document.getElementById('settings-hcp').value.trim();
   const hcp = hcpRaw==='' ? null : parseFloat(hcpRaw.replace(',','.'));
+  const genderEl = document.getElementById('settings-gender');
+  const teeEl = document.getElementById('settings-tee');
   const existing = loadUserProfile() || {};
-  const merged = Object.assign({}, existing, { name, hcp: (hcp!=null && !isNaN(hcp)) ? hcp : null });
+  const merged = Object.assign({}, existing, {
+    name,
+    hcp: (hcp!=null && !isNaN(hcp)) ? hcp : null,
+    gender: (genderEl && genderEl.value) || existing.gender || 'men',
+    teeId: (teeEl && teeEl.value) || existing.teeId || 'gul'
+  });
   saveUserProfile(merged);
-  updateHeaderStats(); renderGameTab(); renderSettingsTab();
+  updateHeaderStats(); renderGameTab(); renderHoleScores(); renderSettingsTab();
+}
+// När kön byts måste tee-listan filtreras om (Vit finns bara för herr).
+// Vi sparar aktuellt kön direkt så select-listan matchar vid re-render, utan att röra HCP-fältet.
+function onGenderChange(){
+  const genderEl = document.getElementById('settings-gender');
+  const existing = loadUserProfile() || {};
+  const newGender = (genderEl && genderEl.value) || 'men';
+  // Om nuvarande tee inte finns för det nya könet, fall tillbaka på Gul
+  let teeId = existing.teeId || 'gul';
+  if(!TEES[teeId] || !TEES[teeId].genderCategories.includes(newGender)) teeId = 'gul';
+  saveUserProfile(Object.assign({}, existing, { gender: newGender, teeId }));
+  renderSettingsTab();
 }
 
 // Klubbor
@@ -434,8 +533,8 @@ let playerProfileGlobalStatsOverride = null;
 function loadSampleData(){
   if(!confirm('Ladda in exempeldata (Fredriks 19 Torshälla-ronder)? Detta ersätter din nuvarande profil, bag och ronder.')) return;
   fetch('assets/data/sample_data.json'+TAG).then(r=>r.json()).then(sample=>{
-    // Profil (namn + HCP) → gcProfile
-    if(sample.profile) saveUserProfile({ name: sample.profile.name, hcp: sample.profile.hcp });
+    // Profil (namn + HCP + kön + tee) → gcProfile. Fredrik spelar Gul tee (herr).
+    if(sample.profile) saveUserProfile({ name: sample.profile.name, hcp: sample.profile.hcp, gender: sample.profile.gender || 'men', teeId: sample.profile.teeId || 'gul' });
     // Klubbor → gcClubs
     if(Array.isArray(sample.clubs)) saveUserClubs(sample.clubs);
     // Ronder: konstruera Round-objekt av holeScores. Vi har inga faktiska datum för Fredriks ronder,
@@ -517,13 +616,24 @@ function renderHoleScores(){
   }
   const count = data.length;
   const avgScore = Math.round((data.reduce((a,b)=>a+b,0)/count)*10)/10;
-  const avgPoints = Math.round((data.reduce((a,b)=>a+stablefordPoints(b,h.par),0)/count)*10)/10;
+  // Netto Stableford utifrån användarens HCP och valda tee. Faller tillbaka på brutto om HCP saknas.
+  const profile = getEffectivePlayerProfile();
+  const userProfile = loadUserProfile() || {};
+  const teeId = userProfile.teeId || 'gul';
+  const gender = userProfile.gender || 'men';
+  const pointResults = data.map(s => computeHolePoints(s, h, profile, teeId, gender));
+  const pointMode = pointResults[0] ? pointResults[0].mode : 'brutto';
+  const strokesOnHole = pointResults[0] ? pointResults[0].strokesOnHole : null;
+  const avgPoints = Math.round((pointResults.reduce((a,r)=>a+(r?r.points:0),0)/count)*10)/10;
   if(badge) badge.textContent = `${count} ${count===1?'rond':'ronder'}`;
   const recent = data.slice(-5).reverse();
   // Formindikator: lime = under par, mint = par, dämpad = över par (samma gröna palett som resten av appen)
   const pillClass = s => s<h.par ? 'under' : (s===h.par ? 'par' : '');
   const pills = recent.map(s=>`<div class="formpill ${pillClass(s)}">${s}</div>`).join('');
-  listEl.innerHTML = `<div class="statgrid"><div class="stattile"><b>${avgScore}</b><span>Snitt score</span></div><div class="stattile"><b>${avgPoints}</b><span>Snitt poäng</span></div></div><div class="formlabel">Senaste ${recent.length}</div><div class="formrow">${pills}</div>`;
+  const pointsLabel = pointMode==='netto'
+    ? `Snitt poäng (netto${strokesOnHole!=null?', +'+strokesOnHole+' slag':''})`
+    : 'Snitt poäng (brutto)';
+  listEl.innerHTML = `<div class="statgrid"><div class="stattile"><b>${avgScore}</b><span>Snitt score</span></div><div class="stattile"><b>${avgPoints}</b><span>${pointsLabel}</span></div></div><div class="formlabel">Senaste ${recent.length}</div><div class="formrow">${pills}</div>${pointMode==='brutto'?'<div class="legend" style="margin-top:10px">Poängen räknas som brutto Stableford tills du sparat HCP och valt tee under <b>Inställn. → Spelarprofil</b>.</div>':''}`;
 }
 // Startdata: hål-scorehistorik (platt format) + spelarprofil. Bundlade JSON-filer i assets/data
 // är skrivskyddade när appen körs i webbläsaren — de är bara initialdata, ingen skrivning tillbaka.
