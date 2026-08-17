@@ -1,37 +1,37 @@
 {
   "schemaVersion": 1,
-  "playerId": "fredrik_wernqvist",
+  "playerId": "",
   "strategyPreference": "safe_scoring",
   "target": {
     "primary": "reduce_double_bogey_or_worse",
     "secondary": "reduce_three_putts"
   },
   "handicap": {
-    "current": 33.3,
-    "improvementSinceFirstRound": 10.7
+    "current": null,
+    "improvementSinceFirstRound": null
   },
   "globalStats": {
-    "roundsPlayed": 19,
-    "averageScore": 120.7,
-    "bestScore": 104,
+    "roundsPlayed": 0,
+    "averageScore": null,
+    "bestScore": null,
     "fairway": {
-      "hitPercentage": 31,
-      "missLeftPercentage": 20,
-      "missRightPercentage": 48
+      "hitPercentage": null,
+      "missLeftPercentage": null,
+      "missRightPercentage": null
     },
     "putting": {
-      "averagePuttsPerRound": 42.7,
-      "twoPuttPercentage": 52,
-      "threePuttPercentage": 27,
-      "moreThanThreePuttPercentage": 9
+      "averagePuttsPerRound": null,
+      "twoPuttPercentage": null,
+      "threePuttPercentage": null,
+      "moreThanThreePuttPercentage": null
     },
     "scoreDistribution": {
-      "birdies": 1,
-      "pars": 17,
-      "bogeys": 44,
-      "doubleBogeys": 63,
-      "worseThanDoubleBogey": 124,
-      "noResult": 3
+      "birdies": 0,
+      "pars": 0,
+      "bogeys": 0,
+      "doubleBogeys": 0,
+      "worseThanDoubleBogey": 0,
+      "noResult": 0
     }
   }
 }

@@ -1,5 +1,5 @@
-// use APP_VERSION injected into window by index.html; fall back to 1.7.0
-const APP_VERSION = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1.7.0';
+// use APP_VERSION injected into window by index.html; fall back to 1.8.0
+const APP_VERSION = (typeof window !== 'undefined' && window.APP_VERSION) ? window.APP_VERSION : '1.8.0';
 const TAG = APP_VERSION ? `?v=${APP_VERSION}` : '';
 // expose TAG as a global for inline onerror handlers that run in global scope
 window.TAG = TAG;
@@ -44,15 +44,17 @@ function getEffectiveHoleScores(){
   return base;
 }
 // Effektiv spelarprofil: startdata från player_profile.json, men namn/HCP kan skrivas över lokalt.
+// Om exempeldata har laddats in ligger dess globalStats i playerProfileGlobalStatsOverride (i minnet).
 function getEffectivePlayerProfile(){
   const seed = playerProfileSeed;
-  const user = loadUserProfile();
-  if(!seed) return user ? {handicap:{current:user.hcp}, playerName:user.name} : null;
-  if(!user) return seed;
-  const merged = Object.assign({}, seed);
-  merged.handicap = Object.assign({}, seed.handicap||{}, user.hcp!=null?{current:user.hcp}:{});
-  if(user.name) merged.playerName = user.name;
-  return merged;
+  const user = loadUserProfile() || {};
+  const base = seed ? Object.assign({}, seed) : {handicap:{}, globalStats:null};
+  if(playerProfileGlobalStatsOverride){ base.globalStats = playerProfileGlobalStatsOverride; }
+  base.handicap = Object.assign({}, base.handicap||{});
+  if(user.hcp!=null) base.handicap.current = user.hcp;
+  if(user.improvementSinceFirstRound!=null) base.handicap.improvementSinceFirstRound = user.improvementSinceFirstRound;
+  if(user.name) base.playerName = user.name;
+  return base;
 }
 
 let i=+(localStorage.gcHole||0), wind=0; let scores = {};
@@ -175,13 +177,68 @@ document.querySelector('#settings').innerHTML=`<div class="card"><small style="c
 function renderGameTab(){
   const profile = getEffectivePlayerProfile();
   const gs = profile && profile.globalStats;
-  if(!gs){ document.querySelector('#game').innerHTML = '<div class="card advice"><small>MITT SPEL</small><h3>Ingen profildata tillgänglig</h3></div>'; return; }
-  const hcp = profile.handicap || {};
-  const displayName = profile.playerName || 'Fredrik';
-  const dist = gs.scoreDistribution;
-  const totalHoles = dist.birdies+dist.pars+dist.bogeys+dist.doubleBogeys+dist.worseThanDoubleBogey+dist.noResult;
-  const blowupPct = totalHoles>0 ? Math.round((dist.doubleBogeys+dist.worseThanDoubleBogey)/totalHoles*100) : null;
-  document.querySelector('#game').innerHTML = `<div class="card advice"><small>MITT SPEL</small><h3>${displayName}${hcp.current!=null?', HCP '+hcp.current:''}</h3>${hcp.improvementSinceFirstRound!=null?`<div class="score" style="color:#bef264">−${hcp.improvementSinceFirstRound}</div><div>HCP sedan första registrerade rond</div>`:''}</div><div class="grid"><div class="metric">Ronder<b>${gs.roundsPlayed}</b></div><div class="metric">Snittscore<b>${gs.averageScore}</b></div><div class="metric">Bästa score<b>${gs.bestScore}</b></div><div class="metric">Fairwayträff<b>${gs.fairway.hitPercentage} %</b></div><div class="metric">Puttar/rond<b>${gs.putting.averagePuttsPerRound}</b></div></div><div class="card"><small style="color:#047857;font-weight:800">MISS- OCH PUTTMÖNSTER</small><div class="legend" style="margin-top:6px">Andel av registrerade fairwayslag respektive ronder, ${gs.roundsPlayed} ronder totalt.</div><div class="historygrid" style="grid-template-columns:repeat(3,1fr);margin-top:10px"><div>Miss vä<b>${gs.fairway.missLeftPercentage}%</b></div><div>Fairway<b>${gs.fairway.hitPercentage}%</b></div><div>Miss hö<b>${gs.fairway.missRightPercentage}%</b></div></div><div class="historygrid" style="grid-template-columns:repeat(3,1fr);margin-top:6px"><div>2-putt<b>${gs.putting.twoPuttPercentage}%</b></div><div>3-putt<b>${gs.putting.threePuttPercentage}%</b></div><div>4+ putt<b>${gs.putting.moreThanThreePuttPercentage}%</b></div></div></div><div class="card"><small style="color:#047857;font-weight:800">ÖVERGRIPANDE ANALYS</small><div class="legend" style="margin-top:6px">Resultatfördelning över ${totalHoles} registrerade hålresultat (${dist.noResult} utan resultat), ${gs.roundsPlayed} ronder.</div><div class="historygrid"><div>Birdie<b>${dist.birdies}</b></div><div>Par<b>${dist.pars}</b></div><div>Bogey<b>${dist.bogeys}</b></div><div>Dubbel<b>${dist.doubleBogeys}</b></div><div>Sämre<b>${dist.worseThanDoubleBogey}</b></div></div></div><div class="card"><b>Caddyns fokus</b><p>• Din vanligaste registrerade miss är höger (${gs.fairway.missRightPercentage}%) — välj målområden där en högermiss inte straffar dig hårt.</p><p>• ${gs.putting.threePuttPercentage}% treputtar totalt — prioritera greenens stora del och en hanterbar första putt.</p>${blowupPct!=null?`<p>• ${blowupPct}% av dina registrerade hålresultat är dubbelbogey eller sämre — det är caddyns huvudfokus att sänka den andelen.</p>`:''}</div>`;
+  const rounds = loadUserRounds();
+  const hcp = (profile && profile.handicap) || {};
+  const displayName = (profile && profile.playerName) || 'Ny spelare';
+  const gsHasData = gs && gs.roundsPlayed > 0;
+
+  // Tomt läge — visa välkomstvy i stället för en tabell full av nollor/streck.
+  if(!gsHasData && rounds.length===0){
+    document.querySelector('#game').innerHTML = `<div class="card advice">
+      <small>MITT SPEL</small>
+      <h3>${displayName}${hcp.current!=null?', HCP '+hcp.current:''}</h3>
+      <p style="margin:10px 0 0;line-height:1.5">Här landar din övergripande statistik när du börjar registrera ronder eller lägger in dina siffror manuellt.</p>
+    </div>
+    <div class="card">
+      <small style="color:#047857;font-weight:800">KOM IGÅNG</small>
+      <div class="legend" style="margin-top:6px">Öppna <b>Inställn.</b>-fliken för att:</div>
+      <ul class="reasons" style="color:#17221c;margin-top:8px">
+        <li>Fylla i namn och handikap i <b>Spelarprofil</b>.</li>
+        <li>Redigera <b>Min klubbag</b> så motorn känner till dina egna klubblängder.</li>
+        <li>Registrera din första <b>rond</b> — den blandas in i statistiken direkt.</li>
+        <li>Klicka <b>"Ladda in exempeldata"</b> om du vill se hur appen ser ut med data i.</li>
+      </ul>
+    </div>`;
+    return;
+  }
+
+  // Bygg vyn utifrån vad som faktiskt finns. Ronder/snitt/bäst räknas från de faktiska ronderna;
+  // fairway-/putt-/scorefördelning kommer från importerad globalStats om den finns (annars döljs kortet).
+  const roundsPlayed = rounds.length > 0 ? rounds.length : (gs ? gs.roundsPlayed : 0);
+  const roundTotals = rounds.map(r=>(r.holes||[]).reduce((a,b)=>a+(typeof b==='number'?b:0),0)).filter(t=>t>0);
+  const roundAvg = roundTotals.length ? Math.round(roundTotals.reduce((a,b)=>a+b,0)/roundTotals.length*10)/10 : (gs ? gs.averageScore : null);
+  const roundBest = roundTotals.length ? Math.min.apply(null, roundTotals) : (gs ? gs.bestScore : null);
+
+  const hasFairway = gs && gs.fairway && gs.fairway.hitPercentage!=null;
+  const hasPutting = gs && gs.putting && gs.putting.averagePuttsPerRound!=null;
+  const hasDistribution = gs && gs.scoreDistribution && (gs.scoreDistribution.birdies+gs.scoreDistribution.pars+gs.scoreDistribution.bogeys+gs.scoreDistribution.doubleBogeys+gs.scoreDistribution.worseThanDoubleBogey) > 0;
+
+  const heroCard = `<div class="card advice"><small>MITT SPEL</small><h3>${displayName}${hcp.current!=null?', HCP '+hcp.current:''}</h3>${hcp.improvementSinceFirstRound!=null?`<div class="score" style="color:#bef264">−${hcp.improvementSinceFirstRound}</div><div>HCP sedan första registrerade rond</div>`:''}</div>`;
+
+  const metrics = [
+    ['Ronder', roundsPlayed],
+    ['Snittscore', roundAvg!=null ? roundAvg : '–'],
+    ['Bästa score', roundBest!=null ? roundBest : '–']
+  ];
+  if(hasFairway) metrics.push(['Fairwayträff', gs.fairway.hitPercentage+' %']);
+  if(hasPutting) metrics.push(['Puttar/rond', gs.putting.averagePuttsPerRound]);
+  const metricsCard = `<div class="grid">${metrics.map(m=>`<div class="metric">${m[0]}<b>${m[1]}</b></div>`).join('')}</div>`;
+
+  const patternCard = (hasFairway || hasPutting) ? `<div class="card"><small style="color:#047857;font-weight:800">MISS- OCH PUTTMÖNSTER</small><div class="legend" style="margin-top:6px">Andel av registrerade fairwayslag respektive ronder.</div>${hasFairway?`<div class="historygrid" style="grid-template-columns:repeat(3,1fr);margin-top:10px"><div>Miss vä<b>${gs.fairway.missLeftPercentage}%</b></div><div>Fairway<b>${gs.fairway.hitPercentage}%</b></div><div>Miss hö<b>${gs.fairway.missRightPercentage}%</b></div></div>`:''}${hasPutting?`<div class="historygrid" style="grid-template-columns:repeat(3,1fr);margin-top:6px"><div>2-putt<b>${gs.putting.twoPuttPercentage}%</b></div><div>3-putt<b>${gs.putting.threePuttPercentage}%</b></div><div>4+ putt<b>${gs.putting.moreThanThreePuttPercentage}%</b></div></div>`:''}</div>` : '';
+
+  let analysisCard = '', focusItems = [];
+  if(hasDistribution){
+    const dist = gs.scoreDistribution;
+    const totalHoles = dist.birdies+dist.pars+dist.bogeys+dist.doubleBogeys+dist.worseThanDoubleBogey+dist.noResult;
+    const blowupPct = totalHoles>0 ? Math.round((dist.doubleBogeys+dist.worseThanDoubleBogey)/totalHoles*100) : null;
+    analysisCard = `<div class="card"><small style="color:#047857;font-weight:800">ÖVERGRIPANDE ANALYS</small><div class="legend" style="margin-top:6px">Resultatfördelning över ${totalHoles} registrerade hålresultat (${dist.noResult} utan resultat).</div><div class="historygrid"><div>Birdie<b>${dist.birdies}</b></div><div>Par<b>${dist.pars}</b></div><div>Bogey<b>${dist.bogeys}</b></div><div>Dubbel<b>${dist.doubleBogeys}</b></div><div>Sämre<b>${dist.worseThanDoubleBogey}</b></div></div></div>`;
+    if(blowupPct!=null) focusItems.push(`${blowupPct}% av dina registrerade hålresultat är dubbelbogey eller sämre — det är caddyns huvudfokus att sänka den andelen.`);
+  }
+  if(hasFairway) focusItems.unshift(`Din vanligaste registrerade miss är höger (${gs.fairway.missRightPercentage}%) — välj målområden där en högermiss inte straffar dig hårt.`);
+  if(hasPutting) focusItems.push(`${gs.putting.threePuttPercentage}% treputtar totalt — prioritera greenens stora del och en hanterbar första putt.`);
+  const focusCard = focusItems.length ? `<div class="card"><b>Caddyns fokus</b>${focusItems.map(f=>`<p>• ${f}</p>`).join('')}</div>` : '';
+
+  document.querySelector('#game').innerHTML = heroCard + metricsCard + patternCard + analysisCard + focusCard;
 }
 
 // ==========================================================================
@@ -194,7 +251,7 @@ function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, ch=>({ '
 function renderSettingsTab(){
   const profile = getEffectivePlayerProfile();
   const userProfile = loadUserProfile() || {};
-  const name = userProfile.name || (profile && profile.playerName) || 'Fredrik';
+  const name = userProfile.name || (profile && profile.playerName) || '';
   const hcp = userProfile.hcp!=null ? userProfile.hcp : (profile && profile.handicap && profile.handicap.current!=null ? profile.handicap.current : '');
   const clubs = getEffectiveClubs();
   const rounds = loadUserRounds();
@@ -242,7 +299,9 @@ function renderSettingsTab(){
 
   const dataCard = `<div class="card"><small style="color:#047857;font-weight:800">DINA DATA</small>
     <div class="legend" style="margin-top:4px">Profil, klubbor och ronder sparas lokalt i din webbläsare. Exportera regelbundet för att inte förlora dem.</div>
-    <div class="btnrow"><button class="button" onclick="exportUserData()">Exportera JSON</button><button class="button" onclick="triggerImport()">Importera JSON</button><button class="button warnbtn" onclick="clearAllUserData()">Rensa all min data</button></div>
+    <div class="btnrow"><button class="button" onclick="exportUserData()">Exportera JSON</button><button class="button" onclick="triggerImport()">Importera JSON</button></div>
+    <div class="btnrow"><button class="button" onclick="loadSampleData()">Ladda in exempeldata</button><button class="button warnbtn" onclick="clearAllUserData()">Rensa all min data</button></div>
+    <div class="legend" style="margin-top:6px">Exempeldata är en riktig spelares 19 ronder på Torshälla GK — bra att prova appen med om du vill se hur den ser ut fylld med data.</div>
     <input id="import-file" type="file" accept="application/json" style="display:none" onchange="importUserData(event)"/>
   </div>`;
 
@@ -254,7 +313,9 @@ function saveProfileFromForm(){
   const name = document.getElementById('settings-name').value.trim();
   const hcpRaw = document.getElementById('settings-hcp').value.trim();
   const hcp = hcpRaw==='' ? null : parseFloat(hcpRaw.replace(',','.'));
-  saveUserProfile({ name, hcp: (hcp!=null && !isNaN(hcp)) ? hcp : null });
+  const existing = loadUserProfile() || {};
+  const merged = Object.assign({}, existing, { name, hcp: (hcp!=null && !isNaN(hcp)) ? hcp : null });
+  saveUserProfile(merged);
   updateHeaderStats(); renderGameTab(); renderSettingsTab();
 }
 
@@ -361,7 +422,52 @@ function importUserData(evt){
 function clearAllUserData(){
   if(!confirm('Rensa all din lokala data (profil, klubbor, ronder)? Startdatan från appen finns kvar.')) return;
   localStorage.removeItem('gcProfile'); localStorage.removeItem('gcClubs'); localStorage.removeItem('gcRounds');
+  // Nollställ även den i minnet cachade globalStats så Mitt Spel-vyn går tillbaka till tomma välkomstläget.
+  playerProfileGlobalStatsOverride = null;
   updateHeaderStats(); renderGameTab(); renderHoleScores(); render(); renderSettingsTab();
+}
+// Låt oss kunna lägga in exempeldatans globalStats i minnet (utan att skriva till JSON-seed på disk,
+// och utan att blanda in i den strikta "user data"-modellen som spelaren själv redigerar).
+// När exempeldata laddas in fyller vi också gcProfile/gcClubs/gcRounds så det ser ut precis som
+// om Fredrik själv hade matat in allt.
+let playerProfileGlobalStatsOverride = null;
+function loadSampleData(){
+  if(!confirm('Ladda in exempeldata (Fredriks 19 Torshälla-ronder)? Detta ersätter din nuvarande profil, bag och ronder.')) return;
+  fetch('assets/data/sample_data.json'+TAG).then(r=>r.json()).then(sample=>{
+    // Profil (namn + HCP) → gcProfile
+    if(sample.profile) saveUserProfile({ name: sample.profile.name, hcp: sample.profile.hcp });
+    // Klubbor → gcClubs
+    if(Array.isArray(sample.clubs)) saveUserClubs(sample.clubs);
+    // Ronder: konstruera Round-objekt av holeScores. Vi har inga faktiska datum för Fredriks ronder,
+    // så vi använder ett schema med 7 dagars mellanrum bakåt från idag som placeholder. Antal ronder
+    // = längden på den kortaste hål-listan (5 för Fredrik).
+    if(sample.holeScores){
+      const holeKeys = Object.keys(sample.holeScores);
+      const roundCount = Math.min.apply(null, holeKeys.map(k=>(sample.holeScores[k]||[]).length));
+      const generatedRounds = [];
+      const today = new Date();
+      for(let r=0; r<roundCount; r++){
+        const d = new Date(today); d.setDate(today.getDate() - (roundCount-r)*7);
+        const holes = H.map(h=>{ const list = sample.holeScores[String(h.hole)] || []; return list[r]!=null ? list[r] : null; });
+        generatedRounds.push({ id: 'sample_'+r+'_'+Date.now(), date: d.toISOString().slice(0,10), courseId: 'torshallagolfklubb', teeName: 'Gul', holes });
+      }
+      saveUserRounds(generatedRounds);
+    }
+    // GlobalStats (fairway-, putt- och scorefördelning) — bakomliggande importerad statistik som inte
+    // går att härleda från bara hål-scorer. Läggs som ett minnesobjekt som getEffectivePlayerProfile
+    // kan smälta in för sample-data-läget.
+    playerProfileGlobalStatsOverride = sample.globalStats || null;
+    if(playerProfileGlobalStatsOverride && sample.globalStats && sample.globalStats.handicapImprovement!=null){
+      // Bevara HCP-utveckling ovanpå gcProfile för visning
+      const p = loadUserProfile() || {};
+      p.improvementSinceFirstRound = sample.globalStats.handicapImprovement;
+      saveUserProfile(p);
+    }
+    updateHeaderStats(); renderGameTab(); renderHoleScores(); render(); renderSettingsTab();
+    alert('Exempeldata inläst. Öppna "Mitt Spel" och "Caddy" för att utforska.');
+  }).catch(err=>{
+    alert('Kunde inte läsa exempeldatan: '+err.message);
+  });
 }
 
 function computeClubStats(){
@@ -385,9 +491,13 @@ function updateHeaderStats(){
     document.getElementById('stat-best').textContent = stats.best || '-';
     document.getElementById('header-club-name').textContent = 'Torshälla GK';
     const profile = getEffectivePlayerProfile();
-    if(profile && profile.handicap && profile.handicap.current!=null){
-      const hcpEl = document.getElementById('stat-hcp');
-      if(hcpEl) hcpEl.textContent = String(profile.handicap.current).replace('.',',');
+    const hcpEl = document.getElementById('stat-hcp');
+    if(hcpEl){
+      if(profile && profile.handicap && profile.handicap.current!=null){
+        hcpEl.textContent = String(profile.handicap.current).replace('.',',');
+      } else {
+        hcpEl.textContent = '–';
+      }
     }
   }catch(e){console.warn('updateHeaderStats failed',e)}
 }

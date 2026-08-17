@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "description": "Exempeldata (Fredrik Wernqvist, 19 ronder på Torshälla GK). Kan laddas in från Inställningar → Dina data → 'Ladda in exempeldata' som en snabb demo eller startpunkt.",
+  "profile": {
+    "name": "Fredrik",
+    "hcp": 33.3
+  },
+  "globalStats": {
+    "roundsPlayed": 19,
+    "averageScore": 120.7,
+    "bestScore": 104,
+    "handicapImprovement": 10.7,
+    "fairway": {
+      "hitPercentage": 31,
+      "missLeftPercentage": 20,
+      "missRightPercentage": 48
+    },
+    "putting": {
+      "averagePuttsPerRound": 42.7,
+      "twoPuttPercentage": 52,
+      "threePuttPercentage": 27,
+      "moreThanThreePuttPercentage": 9
+    },
+    "scoreDistribution": {
+      "birdies": 1,
+      "pars": 17,
+      "bogeys": 44,
+      "doubleBogeys": 63,
+      "worseThanDoubleBogey": 124,
+      "noResult": 3
+    }
+  },
+  "clubs": [
+    ["Driver 909 D-Comp", 145, 181],
+    ["Järn 5 King F9", 115, 144],
+    ["Järn 8 King F9", 113, 124],
+    ["Järn 7 King F9", 109, 126],
+    ["Järn 9 King F9", 101, 108],
+    ["Pitching Wedge", 90, 93],
+    ["Wedge 60°", 72, 84]
+  ],
+  "holeScores": {
+    "1": [4, 5, 5, 7, 9],
+    "2": [4, 5, 6, 6, 7],
+    "3": [6, 6, 7, 7, 7],
+    "4": [3, 4, 4, 4, 5],
+    "5": [6, 6, 7, 7, 7],
+    "6": [6, 7, 7, 9, 9],
+    "7": [6, 7, 8, 8, 8],
+    "8": [3, 3, 4, 4, 5],
+    "9": [4, 5, 6, 8, 8],
+    "10": [4, 5, 5, 7, 7, 8],
+    "11": [6, 7, 7, 8, 8, 8],
+    "12": [4, 4, 5, 5, 5, 6],
+    "13": [5, 5, 5, 7, 7, 9],
+    "14": [5, 6, 6, 7, 7, 9],
+    "15": [3, 3, 4, 4, 5, 5],
+    "16": [6, 7, 7, 8, 8, 8],
+    "17": [5, 6, 6, 6, 8, 8],
+    "18": [5, 6, 7, 7, 7, 8]
+  }
+}

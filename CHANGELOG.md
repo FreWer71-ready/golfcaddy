@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [v1.8.0] - 2026-08-17
+- Appen är nu en riktig **multi-användarapp för Torshälla-spelare** i stället för en personlig app för en enda spelare.
+  - `assets/data/player_profile.json` och `hole_scores.json` är rensade till tomma seedvärden. Nya användare öppnar appen och ser sin egen tomma statistik — inte Fredriks 19 ronder blandade in i sin.
+  - Fredriks tidigare data är flyttad till en separat `assets/data/sample_data.json` som kan laddas in via en ny knapp i **Inställn. → Dina data → "Ladda in exempeldata"**. Bra för att visa upp appen eller för dig själv efter en localStorage-rensning.
+  - "Mitt Spel" har ett nytt tomt-läge med en "Kom igång"-vy när ingen data finns i stället för en tabell full av streck och nollor.
+  - Header-defaults ändrade: HCP visar "–" och Ronder/Bäst "0/–" tills användaren själv fyller i.
+- Namnbyte: appens titel, PWA-manifest och headereyebrow är nu **"Golfcaddy"** i stället för "Fredriks Golfcaddy". `document.title`, `<title>`, `manifest.webmanifest → name` och `#version-text` uppdaterade. Fredrik-fallback i formulär och Mitt Spel ersatt med tom placeholder eller "Ny spelare".
+- Bump APP_VERSION to 1.8.0.
+
+## [v1.7.1] - 2026-08-17
+- Ny app-ikon: ersatt icons/icon-180.png, icon-192.png och icon-512.png med en ny grafik (AI-caddy i pratbubbla + golfboll + green med flagga + statistikkurva) skalad från 1254×1254 originalet med Lanczos-nedsampling. manifest.webmanifest och sw.js refererade redan samma filnamn — inga kodändringar krävdes.
+
 ## [v1.7.0] - 2026-08-13
 - **Ny "Inställn."-flik** (fjärde fliken): användaren kan nu själv redigera all sin data direkt i appen — inga JSON-filer att pilla i.
   - **Spelarprofil**: namn och aktuellt handikap. Skriver över värdena från `assets/data/player_profile.json`.
